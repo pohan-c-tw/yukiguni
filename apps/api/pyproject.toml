@@ -13,3 +13,6 @@ dependencies = [
 dev = [
     "ruff>=0.15.11",
 ]
+
+[tool.ruff]
+select = ["I"]
