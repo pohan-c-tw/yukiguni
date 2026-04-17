@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 app = FastAPI()
@@ -15,6 +15,16 @@ class CreateJobRequest(BaseModel):
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/jobs/{job_id}")
+def get_job(job_id: str) -> dict[str, str]:
+    job = jobs.get(job_id)
+
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    return job
 
 
 @app.post("/jobs")
