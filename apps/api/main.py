@@ -5,16 +5,45 @@ from uuid import UUID, uuid4
 import psycopg
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 load_dotenv()
 
 app = FastAPI()
 
+ALLOWED_UPLOAD_CONTENT_TYPES = {
+    "video/mp4",
+    "video/quicktime",
+    "video/webm",
+}
+
 
 class CreateUploadUrlRequest(BaseModel):
-    filename: str
+    filename: str = Field(min_length=1, max_length=255)
     content_type: str
+
+    @field_validator("filename")
+    @classmethod
+    def validate_filename(cls, value: str) -> str:
+        normalized = value.strip()
+
+        if not normalized:
+            raise ValueError("filename must not be empty")
+
+        if "/" in normalized or "\\" in normalized:
+            raise ValueError("filename must not contain path separators")
+
+        return normalized
+
+    @field_validator("content_type")
+    @classmethod
+    def validate_content_type(cls, value: str) -> str:
+        normalized = value.strip().lower()
+
+        if normalized not in ALLOWED_UPLOAD_CONTENT_TYPES:
+            raise ValueError("unsupported content_type")
+
+        return normalized
 
 
 class CreateUploadUrlResponse(BaseModel):
