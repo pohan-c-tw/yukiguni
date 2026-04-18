@@ -53,12 +53,49 @@ class CreateUploadUrlResponse(BaseModel):
 
 
 class CreateJobRequest(BaseModel):
+    original_filename: str = Field(min_length=1, max_length=255)
+    content_type: str
     input_object_key: str
+
+    @field_validator("original_filename")
+    @classmethod
+    def validate_original_filename(cls, value: str) -> str:
+        normalized = value.strip()
+
+        if not normalized:
+            raise ValueError("original_filename must not be empty")
+
+        if "/" in normalized or "\\" in normalized:
+            raise ValueError("original_filename must not contain path separators")
+
+        return normalized
+
+    @field_validator("content_type")
+    @classmethod
+    def validate_job_content_type(cls, value: str) -> str:
+        normalized = value.strip().lower()
+
+        if normalized not in ALLOWED_UPLOAD_CONTENT_TYPES:
+            raise ValueError("unsupported content_type")
+
+        return normalized
+
+    @field_validator("input_object_key")
+    @classmethod
+    def validate_input_object_key(cls, value: str) -> str:
+        normalized = value.strip()
+
+        if not normalized:
+            raise ValueError("input_object_key must not be empty")
+
+        return normalized
 
 
 class JobResponse(BaseModel):
     id: UUID
-    status: Literal["uploaded", "processing", "done", "failed"]
+    status: Literal["uploaded", "validating", "processing", "done", "failed"]
+    original_filename: str
+    content_type: str
     input_object_key: str
 
 
@@ -75,11 +112,13 @@ def build_upload_object_key(filename: str) -> str:
     return f"uploads/{uuid4()}-{filename}"
 
 
-def build_job_response(row: tuple[UUID, str, str]) -> JobResponse:
+def build_job_response(row: tuple[UUID, str, str, str, str]) -> JobResponse:
     return JobResponse(
         id=row[0],
         status=row[1],
-        input_object_key=row[2],
+        original_filename=row[2],
+        content_type=row[3],
+        input_object_key=row[4],
     )
 
 
@@ -111,11 +150,23 @@ def create_job(payload: CreateJobRequest) -> JobResponse:
             job_id = uuid4()
             cur.execute(
                 """
-                INSERT INTO analysis_jobs (id, status, input_object_key)
-                VALUES (%s, %s, %s)
-                RETURNING id, status, input_object_key
+                INSERT INTO analysis_jobs (
+                    id,
+                    status,
+                    original_filename,
+                    content_type,
+                    input_object_key
+                )
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id, status, original_filename, content_type, input_object_key
                 """,
-                (job_id, "uploaded", payload.input_object_key),
+                (
+                    job_id,
+                    "uploaded",
+                    payload.original_filename,
+                    payload.content_type,
+                    payload.input_object_key,
+                ),
             )
             row = cur.fetchone()
 
@@ -133,7 +184,7 @@ def get_job(job_id: UUID) -> JobResponse:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id, status, input_object_key
+                SELECT id, status, original_filename, content_type, input_object_key
                 FROM analysis_jobs
                 WHERE id = %s
                 """,
