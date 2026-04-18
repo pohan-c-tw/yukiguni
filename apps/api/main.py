@@ -1,5 +1,6 @@
 import os
-from uuid import uuid4
+from typing import Literal
+from uuid import UUID, uuid4
 
 import psycopg
 from dotenv import load_dotenv
@@ -15,6 +16,12 @@ class CreateJobRequest(BaseModel):
     input_object_key: str
 
 
+class JobResponse(BaseModel):
+    id: UUID
+    status: Literal["uploaded", "processing", "done", "failed"]
+    input_object_key: str
+
+
 def get_database_url() -> str:
     database_url = os.getenv("DATABASE_URL")
 
@@ -24,13 +31,21 @@ def get_database_url() -> str:
     return database_url
 
 
+def build_job_response(row: tuple[UUID, str, str]) -> JobResponse:
+    return JobResponse(
+        id=row[0],
+        status=row[1],
+        input_object_key=row[2],
+    )
+
+
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/jobs/{job_id}")
-def get_job(job_id: str) -> dict[str, str]:
+@app.get("/jobs/{job_id}", response_model=JobResponse)
+def get_job(job_id: UUID) -> JobResponse:
     database_url = get_database_url()
 
     with psycopg.connect(database_url) as conn:
@@ -48,16 +63,12 @@ def get_job(job_id: str) -> dict[str, str]:
     if row is None:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    return {
-        "id": str(row[0]),
-        "status": row[1],
-        "input_object_key": row[2],
-    }
+    return build_job_response(row)
 
 
-@app.post("/jobs")
-def create_job(payload: CreateJobRequest) -> dict[str, str]:
-    job_id = str(uuid4())
+@app.post("/jobs", response_model=JobResponse)
+def create_job(payload: CreateJobRequest) -> JobResponse:
+    job_id = uuid4()
     database_url = get_database_url()
 
     with psycopg.connect(database_url) as conn:
@@ -75,8 +86,4 @@ def create_job(payload: CreateJobRequest) -> dict[str, str]:
     if row is None:
         raise HTTPException(status_code=500, detail="Failed to create job")
 
-    return {
-        "id": str(row[0]),
-        "status": row[1],
-        "input_object_key": row[2],
-    }
+    return build_job_response(row)
