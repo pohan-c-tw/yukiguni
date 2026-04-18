@@ -12,6 +12,17 @@ load_dotenv()
 app = FastAPI()
 
 
+class CreateUploadUrlRequest(BaseModel):
+    filename: str
+    content_type: str
+
+
+class CreateUploadUrlResponse(BaseModel):
+    object_key: str
+    upload_url: str
+    expires_in_seconds: int
+
+
 class CreateJobRequest(BaseModel):
     input_object_key: str
 
@@ -31,6 +42,10 @@ def get_database_url() -> str:
     return database_url
 
 
+def build_upload_object_key(filename: str) -> str:
+    return f"uploads/{uuid4()}-{filename}"
+
+
 def build_job_response(row: tuple[UUID, str, str]) -> JobResponse:
     return JobResponse(
         id=row[0],
@@ -42,6 +57,20 @@ def build_job_response(row: tuple[UUID, str, str]) -> JobResponse:
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/uploads/presign", response_model=CreateUploadUrlResponse)
+def create_upload_url(payload: CreateUploadUrlRequest) -> CreateUploadUrlResponse:
+    object_key = build_upload_object_key(payload.filename)
+
+    # This is a placeholder until we integrate Cloudflare R2 presigned uploads.
+    upload_url = f"https://example-upload-url.local/{object_key}"
+
+    return CreateUploadUrlResponse(
+        object_key=object_key,
+        upload_url=upload_url,
+        expires_in_seconds=900,
+    )
 
 
 @app.post("/jobs", response_model=JobResponse)
