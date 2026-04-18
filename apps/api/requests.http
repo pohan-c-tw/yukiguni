@@ -1,18 +1,30 @@
 @baseUrl = http://127.0.0.1:8000
+@objectKey = replace-me
 @jobId = replace-me
 
 ### Health Check
 # Confirm that the API server is running and reachable.
 GET {{baseUrl}}/health
 
+### Create Presigned Upload URL
+# Ask the API for an object key and a temporary upload target.
+# In the current stage, `upload_url` is still a placeholder and does not upload a real file yet.
+POST {{baseUrl}}/uploads/presign
+Content-Type: application/json
+
+{
+  "filename": "side-view-run.mp4",
+  "content_type": "video/mp4"
+}
+
 ### Create Job
 # Simulate the step after the frontend has already uploaded a video to object storage.
-# `input_object_key` is the storage key of the uploaded file, not the file content itself.
+# Replace `@objectKey` with the `object_key` returned from the presign request.
 POST {{baseUrl}}/jobs
 Content-Type: application/json
 
 {
-  "input_object_key": "uploads/test-video.mp4"
+  "input_object_key": "{{objectKey}}"
 }
 
 ### Get Job
