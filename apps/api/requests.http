@@ -1,0 +1,28 @@
+@baseUrl = http://127.0.0.1:8000
+@jobId = replace-me
+
+### Health Check
+# Confirm that the API server is running and reachable.
+GET {{baseUrl}}/health
+
+### Create Job
+# Simulate the step after the frontend has already uploaded a video to object storage.
+# `input_object_key` is the storage key of the uploaded file, not the file content itself.
+POST {{baseUrl}}/jobs
+Content-Type: application/json
+
+{
+  "input_object_key": "uploads/test-video.mp4"
+}
+
+### Get Job
+# Replace `@jobId` with the id returned from the create-job request.
+GET {{baseUrl}}/jobs/{{jobId}}
+
+### Get Missing Job
+# Use a valid UUID that does not exist in the database.
+GET {{baseUrl}}/jobs/00000000-0000-0000-0000-000000000000
+
+### Get Invalid Job ID
+# Use an invalid UUID to confirm FastAPI rejects malformed path parameters.
+GET {{baseUrl}}/jobs/not-found
