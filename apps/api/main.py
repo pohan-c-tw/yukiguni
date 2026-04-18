@@ -44,6 +44,29 @@ def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.post("/jobs", response_model=JobResponse)
+def create_job(payload: CreateJobRequest) -> JobResponse:
+    database_url = get_database_url()
+
+    with psycopg.connect(database_url) as conn:
+        with conn.cursor() as cur:
+            job_id = uuid4()
+            cur.execute(
+                """
+                INSERT INTO analysis_jobs (id, status, input_object_key)
+                VALUES (%s, %s, %s)
+                RETURNING id, status, input_object_key
+                """,
+                (job_id, "uploaded", payload.input_object_key),
+            )
+            row = cur.fetchone()
+
+    if row is None:
+        raise HTTPException(status_code=500, detail="Failed to create job")
+
+    return build_job_response(row)
+
+
 @app.get("/jobs/{job_id}", response_model=JobResponse)
 def get_job(job_id: UUID) -> JobResponse:
     database_url = get_database_url()
@@ -62,28 +85,5 @@ def get_job(job_id: UUID) -> JobResponse:
 
     if row is None:
         raise HTTPException(status_code=404, detail="Job not found")
-
-    return build_job_response(row)
-
-
-@app.post("/jobs", response_model=JobResponse)
-def create_job(payload: CreateJobRequest) -> JobResponse:
-    job_id = uuid4()
-    database_url = get_database_url()
-
-    with psycopg.connect(database_url) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO analysis_jobs (id, status, input_object_key)
-                VALUES (%s, %s, %s)
-                RETURNING id, status, input_object_key
-                """,
-                (job_id, "uploaded", payload.input_object_key),
-            )
-            row = cur.fetchone()
-
-    if row is None:
-        raise HTTPException(status_code=500, detail="Failed to create job")
 
     return build_job_response(row)
