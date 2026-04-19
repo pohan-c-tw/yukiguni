@@ -48,7 +48,6 @@ def validate_upload_content_type(value: str) -> str:
 
 
 class R2Settings(BaseModel):
-    account_id: str
     bucket_name: str
     access_key_id: str
     secret_access_key: str
@@ -120,7 +119,6 @@ def get_database_url() -> str:
 
 def get_r2_settings() -> R2Settings:
     return R2Settings(
-        account_id=get_required_env("R2_ACCOUNT_ID"),
         bucket_name=get_required_env("R2_BUCKET_NAME"),
         access_key_id=get_required_env("R2_ACCESS_KEY_ID"),
         secret_access_key=get_required_env("R2_SECRET_ACCESS_KEY"),
