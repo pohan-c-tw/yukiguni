@@ -1,6 +1,7 @@
 @baseUrl = http://127.0.0.1:8000
 @filename = side-view-run.mp4
 @contentType = video/mp4
+@fileSize = 10485760
 @objectKey = replace-me
 @jobId = replace-me
 
@@ -10,7 +11,6 @@ GET {{baseUrl}}/health
 
 ### Create Presigned Upload URL
 # Ask the API for an object key and a temporary upload target.
-# In the current stage, `upload_url` is still a placeholder and does not upload a real file yet.
 # If this request succeeds, copy the returned `object_key`
 # to the top-level `@objectKey` variable before running `Create Job`.
 POST {{baseUrl}}/uploads/presign
@@ -18,7 +18,8 @@ Content-Type: application/json
 
 {
   "filename": "{{filename}}",
-  "content_type": "{{contentType}}"
+  "content_type": "{{contentType}}",
+  "file_size": {{fileSize}}
 }
 
 ### Create Presigned Upload URL - MOV
@@ -28,7 +29,8 @@ Content-Type: application/json
 
 {
   "filename": "side-view-run.mov",
-  "content_type": "video/quicktime"
+  "content_type": "video/quicktime",
+  "file_size": {{fileSize}}
 }
 
 ### Create Presigned Upload URL - Empty Filename
@@ -38,7 +40,8 @@ Content-Type: application/json
 
 {
   "filename": "   ",
-  "content_type": "video/mp4"
+  "content_type": "video/mp4",
+  "file_size": {{fileSize}}
 }
 
 ### Create Presigned Upload URL - Invalid Filename
@@ -48,7 +51,8 @@ Content-Type: application/json
 
 {
   "filename": "uploads/side-view-run.mp4",
-  "content_type": "video/mp4"
+  "content_type": "video/mp4",
+  "file_size": {{fileSize}}
 }
 
 ### Create Presigned Upload URL - Unsupported Content Type
@@ -58,7 +62,19 @@ Content-Type: application/json
 
 {
   "filename": "side-view-run.avi",
-  "content_type": "video/x-msvideo"
+  "content_type": "video/x-msvideo",
+  "file_size": {{fileSize}}
+}
+
+### Create Presigned Upload URL - Oversized File
+# Expect `422` because the declared file size exceeds the current API limit.
+POST {{baseUrl}}/uploads/presign
+Content-Type: application/json
+
+{
+  "filename": "{{filename}}",
+  "content_type": "{{contentType}}",
+  "file_size": 104857601
 }
 
 ### Create Job
