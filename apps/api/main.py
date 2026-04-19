@@ -17,6 +17,7 @@ ALLOWED_UPLOAD_CONTENT_TYPES = {
     "video/quicktime",
     "video/webm",
 }
+MAX_UPLOAD_FILE_SIZE_BYTES = 100 * 1024 * 1024
 UPLOAD_URL_EXPIRES_IN_SECONDS = 900
 
 
@@ -47,6 +48,16 @@ def validate_upload_content_type(value: str) -> str:
     return normalized
 
 
+def validate_upload_file_size(value: int) -> int:
+    if value <= 0:
+        raise ValueError("file_size must be greater than 0")
+
+    if value > MAX_UPLOAD_FILE_SIZE_BYTES:
+        raise ValueError("file_size exceeds the maximum allowed size")
+
+    return value
+
+
 class R2Settings(BaseModel):
     bucket_name: str
     access_key_id: str
@@ -57,6 +68,7 @@ class R2Settings(BaseModel):
 class CreateUploadUrlRequest(BaseModel):
     filename: str = Field(min_length=1, max_length=255)
     content_type: str
+    file_size: int
 
     @field_validator("filename")
     @classmethod
@@ -67,6 +79,11 @@ class CreateUploadUrlRequest(BaseModel):
     @classmethod
     def validate_content_type(cls, value: str) -> str:
         return validate_upload_content_type(value)
+
+    @field_validator("file_size")
+    @classmethod
+    def validate_file_size(cls, value: int) -> int:
+        return validate_upload_file_size(value)
 
 
 class CreateUploadUrlResponse(BaseModel):
