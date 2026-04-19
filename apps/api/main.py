@@ -2,6 +2,7 @@ import os
 from typing import Literal
 from uuid import UUID, uuid4
 
+import boto3
 import psycopg
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -16,6 +17,7 @@ ALLOWED_UPLOAD_CONTENT_TYPES = {
     "video/quicktime",
     "video/webm",
 }
+UPLOAD_URL_EXPIRES_IN_SECONDS = 900
 
 
 def normalize_non_empty_text(value: str, field_name: str) -> str:
@@ -43,6 +45,14 @@ def validate_upload_content_type(value: str) -> str:
         raise ValueError("unsupported content_type")
 
     return normalized
+
+
+class R2Settings(BaseModel):
+    account_id: str
+    bucket_name: str
+    access_key_id: str
+    secret_access_key: str
+    endpoint: str
 
 
 class CreateUploadUrlRequest(BaseModel):
@@ -95,17 +105,58 @@ class JobResponse(BaseModel):
     input_object_key: str
 
 
+def get_required_env(name: str) -> str:
+    value = os.getenv(name)
+
+    if not value:
+        raise RuntimeError(f"{name} is not set")
+
+    return value
+
+
 def get_database_url() -> str:
-    database_url = os.getenv("DATABASE_URL")
+    return get_required_env("DATABASE_URL")
 
-    if not database_url:
-        raise RuntimeError("DATABASE_URL is not set")
 
-    return database_url
+def get_r2_settings() -> R2Settings:
+    return R2Settings(
+        account_id=get_required_env("R2_ACCOUNT_ID"),
+        bucket_name=get_required_env("R2_BUCKET_NAME"),
+        access_key_id=get_required_env("R2_ACCESS_KEY_ID"),
+        secret_access_key=get_required_env("R2_SECRET_ACCESS_KEY"),
+        endpoint=get_required_env("R2_ENDPOINT"),
+    )
+
+
+def create_r2_client():
+    settings = get_r2_settings()
+
+    return boto3.client(
+        "s3",
+        endpoint_url=settings.endpoint,
+        aws_access_key_id=settings.access_key_id,
+        aws_secret_access_key=settings.secret_access_key,
+        region_name="auto",
+    )
 
 
 def build_upload_object_key(filename: str) -> str:
     return f"uploads/{uuid4()}-{filename}"
+
+
+def generate_presigned_upload_url(object_key: str, content_type: str) -> str:
+    settings = get_r2_settings()
+    r2_client = create_r2_client()
+
+    return r2_client.generate_presigned_url(
+        ClientMethod="put_object",
+        Params={
+            "Bucket": settings.bucket_name,
+            "Key": object_key,
+            "ContentType": content_type,
+        },
+        ExpiresIn=UPLOAD_URL_EXPIRES_IN_SECONDS,
+    )
 
 
 def build_job_response(row: tuple[UUID, str, str, str, str]) -> JobResponse:
@@ -126,14 +177,12 @@ def health_check() -> dict[str, str]:
 @app.post("/uploads/presign", response_model=CreateUploadUrlResponse)
 def create_upload_url(payload: CreateUploadUrlRequest) -> CreateUploadUrlResponse:
     object_key = build_upload_object_key(payload.filename)
-
-    # This is a placeholder until we integrate Cloudflare R2 presigned uploads.
-    upload_url = f"https://example-upload-url.local/{object_key}"
+    upload_url = generate_presigned_upload_url(object_key, payload.content_type)
 
     return CreateUploadUrlResponse(
         object_key=object_key,
         upload_url=upload_url,
-        expires_in_seconds=900,
+        expires_in_seconds=UPLOAD_URL_EXPIRES_IN_SECONDS,
     )
 
 
