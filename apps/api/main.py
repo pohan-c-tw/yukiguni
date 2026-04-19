@@ -1,4 +1,7 @@
+import json
 import os
+import subprocess
+import tempfile
 from typing import Literal
 from uuid import UUID, uuid4
 
@@ -127,6 +130,12 @@ class UploadedObjectMetadata(BaseModel):
     content_type: str
 
 
+class ProbedVideoMetadata(BaseModel):
+    duration_seconds: float
+    width: int
+    height: int
+
+
 def get_required_env(name: str) -> str:
     value = os.getenv(name)
 
@@ -227,6 +236,125 @@ def get_uploaded_object_metadata(object_key: str) -> UploadedObjectMetadata:
     )
 
 
+def download_uploaded_object_to_tempfile(object_key: str) -> str:
+    r2_client = create_r2_client()
+    _, suffix = os.path.splitext(object_key)
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+        temp_file_path = temp_file.name
+
+    try:
+        with open(temp_file_path, "wb") as file_handle:
+            r2_client.download_fileobj(
+                Bucket=get_r2_settings().bucket_name,
+                Key=object_key,
+                Fileobj=file_handle,
+            )
+    except ClientError as error:
+        os.unlink(temp_file_path)
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to download uploaded object",
+        ) from error
+
+    return temp_file_path
+
+
+def probe_video_file(file_path: str) -> ProbedVideoMetadata:
+    command = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-print_format",
+        "json",
+        "-show_format",
+        "-show_streams",
+        file_path,
+    ]
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if result.returncode != 0:
+        raise HTTPException(
+            status_code=400, detail="Uploaded object is not a valid video"
+        )
+
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to parse video probe result",
+        ) from error
+
+    streams = payload.get("streams")
+    format_info = payload.get("format")
+
+    if not isinstance(streams, list) or not isinstance(format_info, dict):
+        raise HTTPException(
+            status_code=400, detail="Uploaded object has invalid video metadata"
+        )
+
+    video_stream = next(
+        (
+            stream
+            for stream in streams
+            if isinstance(stream, dict) and stream.get("codec_type") == "video"
+        ),
+        None,
+    )
+
+    if not isinstance(video_stream, dict):
+        raise HTTPException(
+            status_code=400, detail="Uploaded object does not contain a video stream"
+        )
+
+    width = video_stream.get("width")
+    height = video_stream.get("height")
+    duration = format_info.get("duration")
+
+    if not isinstance(width, int) or width <= 0:
+        raise HTTPException(
+            status_code=400, detail="Uploaded object has invalid video width"
+        )
+
+    if not isinstance(height, int) or height <= 0:
+        raise HTTPException(
+            status_code=400, detail="Uploaded object has invalid video height"
+        )
+
+    try:
+        duration_seconds = float(duration)
+    except (TypeError, ValueError) as error:
+        raise HTTPException(
+            status_code=400, detail="Uploaded object has invalid video duration"
+        ) from error
+
+    if duration_seconds <= 0:
+        raise HTTPException(
+            status_code=400, detail="Uploaded object has invalid video duration"
+        )
+
+    return ProbedVideoMetadata(
+        duration_seconds=duration_seconds,
+        width=width,
+        height=height,
+    )
+
+
+def validate_uploaded_video_file(object_key: str) -> None:
+    temp_file_path = download_uploaded_object_to_tempfile(object_key)
+
+    try:
+        probe_video_file(temp_file_path)
+    finally:
+        os.unlink(temp_file_path)
+
+
 def validate_uploaded_object_for_job(payload: CreateJobRequest) -> None:
     metadata = get_uploaded_object_metadata(payload.input_object_key)
 
@@ -235,6 +363,8 @@ def validate_uploaded_object_for_job(payload: CreateJobRequest) -> None:
             status_code=400,
             detail="Uploaded object content type does not match the job request",
         )
+
+    validate_uploaded_video_file(payload.input_object_key)
 
 
 def build_job_response(row: tuple[UUID, str, str, str, str]) -> JobResponse:
