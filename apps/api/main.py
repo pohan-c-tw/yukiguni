@@ -18,6 +18,33 @@ ALLOWED_UPLOAD_CONTENT_TYPES = {
 }
 
 
+def normalize_non_empty_text(value: str, field_name: str) -> str:
+    normalized = value.strip()
+
+    if not normalized:
+        raise ValueError(f"{field_name} must not be empty")
+
+    return normalized
+
+
+def validate_filename_like(value: str, field_name: str) -> str:
+    normalized = normalize_non_empty_text(value, field_name)
+
+    if "/" in normalized or "\\" in normalized:
+        raise ValueError(f"{field_name} must not contain path separators")
+
+    return normalized
+
+
+def validate_upload_content_type(value: str) -> str:
+    normalized = normalize_non_empty_text(value, "content_type").lower()
+
+    if normalized not in ALLOWED_UPLOAD_CONTENT_TYPES:
+        raise ValueError("unsupported content_type")
+
+    return normalized
+
+
 class CreateUploadUrlRequest(BaseModel):
     filename: str = Field(min_length=1, max_length=255)
     content_type: str
@@ -25,25 +52,12 @@ class CreateUploadUrlRequest(BaseModel):
     @field_validator("filename")
     @classmethod
     def validate_filename(cls, value: str) -> str:
-        normalized = value.strip()
-
-        if not normalized:
-            raise ValueError("filename must not be empty")
-
-        if "/" in normalized or "\\" in normalized:
-            raise ValueError("filename must not contain path separators")
-
-        return normalized
+        return validate_filename_like(value, "filename")
 
     @field_validator("content_type")
     @classmethod
     def validate_content_type(cls, value: str) -> str:
-        normalized = value.strip().lower()
-
-        if normalized not in ALLOWED_UPLOAD_CONTENT_TYPES:
-            raise ValueError("unsupported content_type")
-
-        return normalized
+        return validate_upload_content_type(value)
 
 
 class CreateUploadUrlResponse(BaseModel):
@@ -60,35 +74,17 @@ class CreateJobRequest(BaseModel):
     @field_validator("original_filename")
     @classmethod
     def validate_original_filename(cls, value: str) -> str:
-        normalized = value.strip()
-
-        if not normalized:
-            raise ValueError("original_filename must not be empty")
-
-        if "/" in normalized or "\\" in normalized:
-            raise ValueError("original_filename must not contain path separators")
-
-        return normalized
+        return validate_filename_like(value, "original_filename")
 
     @field_validator("content_type")
     @classmethod
     def validate_job_content_type(cls, value: str) -> str:
-        normalized = value.strip().lower()
-
-        if normalized not in ALLOWED_UPLOAD_CONTENT_TYPES:
-            raise ValueError("unsupported content_type")
-
-        return normalized
+        return validate_upload_content_type(value)
 
     @field_validator("input_object_key")
     @classmethod
     def validate_input_object_key(cls, value: str) -> str:
-        normalized = value.strip()
-
-        if not normalized:
-            raise ValueError("input_object_key must not be empty")
-
-        return normalized
+        return normalize_non_empty_text(value, "input_object_key")
 
 
 class JobResponse(BaseModel):
