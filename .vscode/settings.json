@@ -1,0 +1,4 @@
+{
+  "cSpell.words": ["presign"],
+  "python.defaultInterpreterPath": "${workspaceFolder}/apps/api/.venv/bin/python"
+}
