@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 
 import boto3
 import psycopg
+from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, field_validator
@@ -121,6 +122,11 @@ class JobResponse(BaseModel):
     input_object_key: str
 
 
+class UploadedObjectMetadata(BaseModel):
+    content_length: int
+    content_type: str
+
+
 def get_required_env(name: str) -> str:
     value = os.getenv(name)
 
@@ -174,6 +180,63 @@ def generate_presigned_upload_url(object_key: str, content_type: str) -> str:
     )
 
 
+def get_uploaded_object_metadata(object_key: str) -> UploadedObjectMetadata:
+    settings = get_r2_settings()
+    r2_client = create_r2_client()
+
+    try:
+        response = r2_client.head_object(
+            Bucket=settings.bucket_name,
+            Key=object_key,
+        )
+    except ClientError as error:
+        status_code = error.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+        error_code = error.response.get("Error", {}).get("Code")
+
+        if status_code == 404 or error_code in {"404", "NoSuchKey"}:
+            raise HTTPException(
+                status_code=400, detail="Uploaded object not found"
+            ) from error
+
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to read uploaded object metadata",
+        ) from error
+
+    content_length = response.get("ContentLength")
+    content_type = response.get("ContentType")
+
+    if not isinstance(content_length, int) or content_length <= 0:
+        raise HTTPException(status_code=400, detail="Uploaded object has invalid size")
+
+    if content_length > MAX_UPLOAD_FILE_SIZE_BYTES:
+        raise HTTPException(
+            status_code=400, detail="Uploaded object exceeds the maximum allowed size"
+        )
+
+    if not isinstance(content_type, str):
+        raise HTTPException(
+            status_code=400, detail="Uploaded object is missing content type"
+        )
+
+    normalized_content_type = validate_upload_content_type(content_type)
+
+    return UploadedObjectMetadata(
+        content_length=content_length,
+        content_type=normalized_content_type,
+    )
+
+
+def validate_uploaded_object_for_job(payload: CreateJobRequest) -> None:
+    metadata = get_uploaded_object_metadata(payload.input_object_key)
+
+    if metadata.content_type != payload.content_type:
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded object content type does not match the job request",
+        )
+
+
 def build_job_response(row: tuple[UUID, str, str, str, str]) -> JobResponse:
     return JobResponse(
         id=row[0],
@@ -203,6 +266,7 @@ def create_upload_url(payload: CreateUploadUrlRequest) -> CreateUploadUrlRespons
 
 @app.post("/jobs", response_model=JobResponse)
 def create_job(payload: CreateJobRequest) -> JobResponse:
+    validate_uploaded_object_for_job(payload)
     database_url = get_database_url()
 
     with psycopg.connect(database_url) as conn:

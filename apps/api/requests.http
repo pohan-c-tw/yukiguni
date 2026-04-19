@@ -1,8 +1,8 @@
 @baseUrl = http://127.0.0.1:8000
-@filename = side-view-run.mp4
+@filename = test-video.mp4
 @contentType = video/mp4
-@fileSize = 10485760
-@objectKey = replace-me
+@fileSize = 5374311
+@objectKey = uploads/ad6f1a7c-fb6a-4817-a706-d29d0f32db38-test-video.mp4
 @jobId = replace-me
 
 ### Health Check
@@ -78,7 +78,7 @@ Content-Type: application/json
 }
 
 ### Create Job
-# Simulate the step after the frontend has already uploaded a video to object storage.
+# Create a job only after the file has really been uploaded to object storage.
 # Keep `original_filename` and `content_type` aligned with the presign request above.
 # Replace `@objectKey` with the `object_key` returned from the presign request.
 POST {{baseUrl}}/jobs
@@ -87,6 +87,28 @@ Content-Type: application/json
 {
   "original_filename": "{{filename}}",
   "content_type": "{{contentType}}",
+  "input_object_key": "{{objectKey}}"
+}
+
+### Create Job - Missing Uploaded Object
+# Expect `400` because the object key does not exist in R2.
+POST {{baseUrl}}/jobs
+Content-Type: application/json
+
+{
+  "original_filename": "{{filename}}",
+  "content_type": "{{contentType}}",
+  "input_object_key": "uploads/does-not-exist.mp4"
+}
+
+### Create Job - Mismatched Content Type
+# Expect `400` because the job request content type does not match the uploaded object's metadata.
+POST {{baseUrl}}/jobs
+Content-Type: application/json
+
+{
+  "original_filename": "{{filename}}",
+  "content_type": "video/quicktime",
   "input_object_key": "{{objectKey}}"
 }
 
