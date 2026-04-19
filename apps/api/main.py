@@ -123,6 +123,9 @@ class JobResponse(BaseModel):
     original_filename: str
     content_type: str
     input_object_key: str
+    video_duration_seconds: float
+    video_width: int
+    video_height: int
 
 
 class UploadedObjectMetadata(BaseModel):
@@ -346,16 +349,16 @@ def probe_video_file(file_path: str) -> ProbedVideoMetadata:
     )
 
 
-def validate_uploaded_video_file(object_key: str) -> None:
+def validate_uploaded_video_file(object_key: str) -> ProbedVideoMetadata:
     temp_file_path = download_uploaded_object_to_tempfile(object_key)
 
     try:
-        probe_video_file(temp_file_path)
+        return probe_video_file(temp_file_path)
     finally:
         os.unlink(temp_file_path)
 
 
-def validate_uploaded_object_for_job(payload: CreateJobRequest) -> None:
+def validate_uploaded_object_for_job(payload: CreateJobRequest) -> ProbedVideoMetadata:
     metadata = get_uploaded_object_metadata(payload.input_object_key)
 
     if metadata.content_type != payload.content_type:
@@ -364,16 +367,21 @@ def validate_uploaded_object_for_job(payload: CreateJobRequest) -> None:
             detail="Uploaded object content type does not match the job request",
         )
 
-    validate_uploaded_video_file(payload.input_object_key)
+    return validate_uploaded_video_file(payload.input_object_key)
 
 
-def build_job_response(row: tuple[UUID, str, str, str, str]) -> JobResponse:
+def build_job_response(
+    row: tuple[UUID, str, str, str, str, float, int, int],
+) -> JobResponse:
     return JobResponse(
         id=row[0],
         status=row[1],
         original_filename=row[2],
         content_type=row[3],
         input_object_key=row[4],
+        video_duration_seconds=row[5],
+        video_width=row[6],
+        video_height=row[7],
     )
 
 
@@ -396,7 +404,7 @@ def create_upload_url(payload: CreateUploadUrlRequest) -> CreateUploadUrlRespons
 
 @app.post("/jobs", response_model=JobResponse)
 def create_job(payload: CreateJobRequest) -> JobResponse:
-    validate_uploaded_object_for_job(payload)
+    probed_video = validate_uploaded_object_for_job(payload)
     database_url = get_database_url()
 
     with psycopg.connect(database_url) as conn:
@@ -409,10 +417,21 @@ def create_job(payload: CreateJobRequest) -> JobResponse:
                     status,
                     original_filename,
                     content_type,
-                    input_object_key
+                    input_object_key,
+                    video_duration_seconds,
+                    video_width,
+                    video_height
                 )
-                VALUES (%s, %s, %s, %s, %s)
-                RETURNING id, status, original_filename, content_type, input_object_key
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING
+                    id,
+                    status,
+                    original_filename,
+                    content_type,
+                    input_object_key,
+                    video_duration_seconds,
+                    video_width,
+                    video_height
                 """,
                 (
                     job_id,
@@ -420,6 +439,9 @@ def create_job(payload: CreateJobRequest) -> JobResponse:
                     payload.original_filename,
                     payload.content_type,
                     payload.input_object_key,
+                    probed_video.duration_seconds,
+                    probed_video.width,
+                    probed_video.height,
                 ),
             )
             row = cur.fetchone()
@@ -438,7 +460,15 @@ def get_job(job_id: UUID) -> JobResponse:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id, status, original_filename, content_type, input_object_key
+                SELECT
+                    id,
+                    status,
+                    original_filename,
+                    content_type,
+                    input_object_key,
+                    video_duration_seconds,
+                    video_width,
+                    video_height
                 FROM analysis_jobs
                 WHERE id = %s
                 """,

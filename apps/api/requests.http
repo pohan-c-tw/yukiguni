@@ -3,7 +3,7 @@
 @contentType = video/mp4
 @fileSize = 5374311
 @objectKey = uploads/ad6f1a7c-fb6a-4817-a706-d29d0f32db38-test-video.mp4
-@jobId = replace-me
+@jobId = c79d52b8-3440-4e41-9ceb-3ba5851864b8
 
 ### Health Check
 # Confirm that the API server is running and reachable.
@@ -81,6 +81,8 @@ Content-Type: application/json
 # Create a job only after the file has really been uploaded to object storage.
 # Keep `original_filename` and `content_type` aligned with the presign request above.
 # Replace `@objectKey` with the `object_key` returned from the presign request.
+# If this succeeds, the response should now include probed video metadata
+# such as `video_duration_seconds`, `video_width`, and `video_height`.
 POST {{baseUrl}}/jobs
 Content-Type: application/json
 
