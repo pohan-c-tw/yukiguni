@@ -1,4 +1,6 @@
 @baseUrl = http://127.0.0.1:8000
+@filename = side-view-run.mp4
+@contentType = video/mp4
 @objectKey = replace-me
 @jobId = replace-me
 
@@ -9,21 +11,66 @@ GET {{baseUrl}}/health
 ### Create Presigned Upload URL
 # Ask the API for an object key and a temporary upload target.
 # In the current stage, `upload_url` is still a placeholder and does not upload a real file yet.
+# If this request succeeds, copy the returned `object_key`
+# to the top-level `@objectKey` variable before running `Create Job`.
 POST {{baseUrl}}/uploads/presign
 Content-Type: application/json
 
 {
-  "filename": "side-view-run.mp4",
+  "filename": "{{filename}}",
+  "content_type": "{{contentType}}"
+}
+
+### Create Presigned Upload URL - MOV
+# Confirm that `.mov` uploads are accepted through the `video/quicktime` MIME type.
+POST {{baseUrl}}/uploads/presign
+Content-Type: application/json
+
+{
+  "filename": "side-view-run.mov",
+  "content_type": "video/quicktime"
+}
+
+### Create Presigned Upload URL - Empty Filename
+# Expect `422` because the filename is blank after trimming.
+POST {{baseUrl}}/uploads/presign
+Content-Type: application/json
+
+{
+  "filename": "   ",
   "content_type": "video/mp4"
+}
+
+### Create Presigned Upload URL - Invalid Filename
+# Expect `422` because filenames must not contain path separators.
+POST {{baseUrl}}/uploads/presign
+Content-Type: application/json
+
+{
+  "filename": "uploads/side-view-run.mp4",
+  "content_type": "video/mp4"
+}
+
+### Create Presigned Upload URL - Unsupported Content Type
+# Expect `422` because this API currently accepts only a small allowlist of video MIME types.
+POST {{baseUrl}}/uploads/presign
+Content-Type: application/json
+
+{
+  "filename": "side-view-run.avi",
+  "content_type": "video/x-msvideo"
 }
 
 ### Create Job
 # Simulate the step after the frontend has already uploaded a video to object storage.
+# Keep `original_filename` and `content_type` aligned with the presign request above.
 # Replace `@objectKey` with the `object_key` returned from the presign request.
 POST {{baseUrl}}/jobs
 Content-Type: application/json
 
 {
+  "original_filename": "{{filename}}",
+  "content_type": "{{contentType}}",
   "input_object_key": "{{objectKey}}"
 }
 
