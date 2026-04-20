@@ -1,10 +1,6 @@
 import psycopg
 
-from settings import get_required_env
-
-
-def get_database_url() -> str:
-    return get_required_env("DATABASE_URL")
+from settings import get_database_url
 
 
 def mark_job_as_processing(job_id: str) -> None:

@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from job_queue import get_job_queue
-from settings import get_required_env
+from settings import get_database_url, get_required_env
 from tasks import process_analysis_job
 
 app = FastAPI()
@@ -142,10 +142,6 @@ class ProbedVideoMetadata(BaseModel):
     duration_seconds: float
     width: int
     height: int
-
-
-def get_database_url() -> str:
-    return get_required_env("DATABASE_URL")
 
 
 def get_r2_settings() -> R2Settings:
