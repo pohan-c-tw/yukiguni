@@ -9,11 +9,10 @@ from uuid import UUID, uuid4
 import boto3
 import psycopg
 from botocore.exceptions import ClientError
-from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
-load_dotenv()
+from settings import get_required_env
 
 app = FastAPI()
 
@@ -141,15 +140,6 @@ class ProbedVideoMetadata(BaseModel):
     duration_seconds: float
     width: int
     height: int
-
-
-def get_required_env(name: str) -> str:
-    value = os.getenv(name)
-
-    if not value:
-        raise RuntimeError(f"{name} is not set")
-
-    return value
 
 
 def get_database_url() -> str:
