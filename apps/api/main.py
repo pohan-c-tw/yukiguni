@@ -1,19 +1,20 @@
-import json
-import os
-import subprocess
-import tempfile
 from datetime import datetime
 from typing import Literal
 from uuid import UUID, uuid4
 
-import boto3
 import psycopg
 from botocore.exceptions import ClientError
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from job_queue import get_job_queue
-from settings import get_database_url, get_required_env
+from r2_storage import (
+    UploadedObjectMetadata,
+    build_upload_object_key,
+    generate_presigned_upload_url,
+    get_uploaded_object_metadata,
+)
+from settings import get_database_url
 from tasks import process_analysis_job
 
 app = FastAPI()
@@ -62,13 +63,6 @@ def validate_upload_file_size(value: int) -> int:
         raise ValueError("file_size exceeds the maximum allowed size")
 
     return value
-
-
-class R2Settings(BaseModel):
-    bucket_name: str
-    access_key_id: str
-    secret_access_key: str
-    endpoint: str
 
 
 class CreateUploadUrlRequest(BaseModel):
@@ -125,74 +119,19 @@ class JobResponse(BaseModel):
     original_filename: str
     content_type: str
     input_object_key: str
-    video_duration_seconds: float
-    video_width: int
-    video_height: int
+    video_duration_seconds: float | None
+    video_width: int | None
+    video_height: int | None
     processing_started_at: datetime | None
     completed_at: datetime | None
     failed_at: datetime | None
 
 
-class UploadedObjectMetadata(BaseModel):
-    content_length: int
-    content_type: str
-
-
-class ProbedVideoMetadata(BaseModel):
-    duration_seconds: float
-    width: int
-    height: int
-
-
-def get_r2_settings() -> R2Settings:
-    return R2Settings(
-        bucket_name=get_required_env("R2_BUCKET_NAME"),
-        access_key_id=get_required_env("R2_ACCESS_KEY_ID"),
-        secret_access_key=get_required_env("R2_SECRET_ACCESS_KEY"),
-        endpoint=get_required_env("R2_ENDPOINT"),
-    )
-
-
-def create_r2_client():
-    settings = get_r2_settings()
-
-    return boto3.client(
-        "s3",
-        endpoint_url=settings.endpoint,
-        aws_access_key_id=settings.access_key_id,
-        aws_secret_access_key=settings.secret_access_key,
-        region_name="auto",
-    )
-
-
-def build_upload_object_key(filename: str) -> str:
-    return f"uploads/{uuid4()}-{filename}"
-
-
-def generate_presigned_upload_url(object_key: str, content_type: str) -> str:
-    settings = get_r2_settings()
-    r2_client = create_r2_client()
-
-    return r2_client.generate_presigned_url(
-        ClientMethod="put_object",
-        Params={
-            "Bucket": settings.bucket_name,
-            "Key": object_key,
-            "ContentType": content_type,
-        },
-        ExpiresIn=UPLOAD_URL_EXPIRES_IN_SECONDS,
-    )
-
-
-def get_uploaded_object_metadata(object_key: str) -> UploadedObjectMetadata:
-    settings = get_r2_settings()
-    r2_client = create_r2_client()
-
+def validate_uploaded_object_for_job(
+    payload: CreateJobRequest,
+) -> UploadedObjectMetadata:
     try:
-        response = r2_client.head_object(
-            Bucket=settings.bucket_name,
-            Key=object_key,
-        )
+        metadata = get_uploaded_object_metadata(payload.input_object_key)
     except ClientError as error:
         status_code = error.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
         error_code = error.response.get("Error", {}).get("Code")
@@ -207,159 +146,23 @@ def get_uploaded_object_metadata(object_key: str) -> UploadedObjectMetadata:
             detail="Failed to read uploaded object metadata",
         ) from error
 
-    content_length = response.get("ContentLength")
-    content_type = response.get("ContentType")
-
-    if not isinstance(content_length, int) or content_length <= 0:
+    if metadata.content_length <= 0:
         raise HTTPException(status_code=400, detail="Uploaded object has invalid size")
 
-    if content_length > MAX_UPLOAD_FILE_SIZE_BYTES:
+    if metadata.content_length > MAX_UPLOAD_FILE_SIZE_BYTES:
         raise HTTPException(
             status_code=400, detail="Uploaded object exceeds the maximum allowed size"
         )
 
-    if not isinstance(content_type, str):
-        raise HTTPException(
-            status_code=400, detail="Uploaded object is missing content type"
-        )
+    normalized_content_type = validate_upload_content_type(metadata.content_type)
 
-    normalized_content_type = validate_upload_content_type(content_type)
-
-    return UploadedObjectMetadata(
-        content_length=content_length,
-        content_type=normalized_content_type,
-    )
-
-
-def download_uploaded_object_to_tempfile(object_key: str) -> str:
-    r2_client = create_r2_client()
-    _, suffix = os.path.splitext(object_key)
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
-        temp_file_path = temp_file.name
-
-    try:
-        with open(temp_file_path, "wb") as file_handle:
-            r2_client.download_fileobj(
-                Bucket=get_r2_settings().bucket_name,
-                Key=object_key,
-                Fileobj=file_handle,
-            )
-    except ClientError as error:
-        os.unlink(temp_file_path)
-        raise HTTPException(
-            status_code=502,
-            detail="Failed to download uploaded object",
-        ) from error
-
-    return temp_file_path
-
-
-def probe_video_file(file_path: str) -> ProbedVideoMetadata:
-    command = [
-        "ffprobe",
-        "-v",
-        "error",
-        "-print_format",
-        "json",
-        "-show_format",
-        "-show_streams",
-        file_path,
-    ]
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    if result.returncode != 0:
-        raise HTTPException(
-            status_code=400, detail="Uploaded object is not a valid video"
-        )
-
-    try:
-        payload = json.loads(result.stdout)
-    except json.JSONDecodeError as error:
-        raise HTTPException(
-            status_code=502,
-            detail="Failed to parse video probe result",
-        ) from error
-
-    streams = payload.get("streams")
-    format_info = payload.get("format")
-
-    if not isinstance(streams, list) or not isinstance(format_info, dict):
-        raise HTTPException(
-            status_code=400, detail="Uploaded object has invalid video metadata"
-        )
-
-    video_stream = next(
-        (
-            stream
-            for stream in streams
-            if isinstance(stream, dict) and stream.get("codec_type") == "video"
-        ),
-        None,
-    )
-
-    if not isinstance(video_stream, dict):
-        raise HTTPException(
-            status_code=400, detail="Uploaded object does not contain a video stream"
-        )
-
-    width = video_stream.get("width")
-    height = video_stream.get("height")
-    duration = format_info.get("duration")
-
-    if not isinstance(width, int) or width <= 0:
-        raise HTTPException(
-            status_code=400, detail="Uploaded object has invalid video width"
-        )
-
-    if not isinstance(height, int) or height <= 0:
-        raise HTTPException(
-            status_code=400, detail="Uploaded object has invalid video height"
-        )
-
-    try:
-        duration_seconds = float(duration)
-    except (TypeError, ValueError) as error:
-        raise HTTPException(
-            status_code=400, detail="Uploaded object has invalid video duration"
-        ) from error
-
-    if duration_seconds <= 0:
-        raise HTTPException(
-            status_code=400, detail="Uploaded object has invalid video duration"
-        )
-
-    return ProbedVideoMetadata(
-        duration_seconds=duration_seconds,
-        width=width,
-        height=height,
-    )
-
-
-def validate_uploaded_video_file(object_key: str) -> ProbedVideoMetadata:
-    temp_file_path = download_uploaded_object_to_tempfile(object_key)
-
-    try:
-        return probe_video_file(temp_file_path)
-    finally:
-        os.unlink(temp_file_path)
-
-
-def validate_uploaded_object_for_job(payload: CreateJobRequest) -> ProbedVideoMetadata:
-    metadata = get_uploaded_object_metadata(payload.input_object_key)
-
-    if metadata.content_type != payload.content_type:
+    if normalized_content_type != payload.content_type:
         raise HTTPException(
             status_code=400,
             detail="Uploaded object content type does not match the job request",
         )
 
-    return validate_uploaded_video_file(payload.input_object_key)
+    return metadata
 
 
 def build_job_response(
@@ -369,9 +172,9 @@ def build_job_response(
         str,
         str,
         str,
-        float,
-        int,
-        int,
+        float | None,
+        int | None,
+        int | None,
         datetime | None,
         datetime | None,
         datetime | None,
@@ -400,7 +203,11 @@ def health_check() -> dict[str, str]:
 @app.post("/uploads/presign", response_model=CreateUploadUrlResponse)
 def create_upload_url(payload: CreateUploadUrlRequest) -> CreateUploadUrlResponse:
     object_key = build_upload_object_key(payload.filename)
-    upload_url = generate_presigned_upload_url(object_key, payload.content_type)
+    upload_url = generate_presigned_upload_url(
+        object_key,
+        payload.content_type,
+        UPLOAD_URL_EXPIRES_IN_SECONDS,
+    )
 
     return CreateUploadUrlResponse(
         object_key=object_key,
@@ -411,10 +218,9 @@ def create_upload_url(payload: CreateUploadUrlRequest) -> CreateUploadUrlRespons
 
 @app.post("/jobs", response_model=JobResponse)
 def create_job(payload: CreateJobRequest) -> JobResponse:
-    probed_video = validate_uploaded_object_for_job(payload)
-    database_url = get_database_url()
+    validate_uploaded_object_for_job(payload)
 
-    with psycopg.connect(database_url) as conn:
+    with psycopg.connect(get_database_url()) as conn:
         with conn.cursor() as cur:
             job_id = uuid4()
             cur.execute(
@@ -424,12 +230,9 @@ def create_job(payload: CreateJobRequest) -> JobResponse:
                     status,
                     original_filename,
                     content_type,
-                    input_object_key,
-                    video_duration_seconds,
-                    video_width,
-                    video_height
+                    input_object_key
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s)
                 RETURNING
                     id,
                     status,
@@ -449,9 +252,6 @@ def create_job(payload: CreateJobRequest) -> JobResponse:
                     payload.original_filename,
                     payload.content_type,
                     payload.input_object_key,
-                    probed_video.duration_seconds,
-                    probed_video.width,
-                    probed_video.height,
                 ),
             )
             row = cur.fetchone()
@@ -469,9 +269,7 @@ def create_job(payload: CreateJobRequest) -> JobResponse:
 
 @app.get("/jobs/{job_id}", response_model=JobResponse)
 def get_job(job_id: UUID) -> JobResponse:
-    database_url = get_database_url()
-
-    with psycopg.connect(database_url) as conn:
+    with psycopg.connect(get_database_url()) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
