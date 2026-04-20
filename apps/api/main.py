@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import tempfile
+from datetime import datetime
 from typing import Literal
 from uuid import UUID, uuid4
 
@@ -126,6 +127,9 @@ class JobResponse(BaseModel):
     video_duration_seconds: float
     video_width: int
     video_height: int
+    processing_started_at: datetime | None
+    completed_at: datetime | None
+    failed_at: datetime | None
 
 
 class UploadedObjectMetadata(BaseModel):
@@ -371,7 +375,19 @@ def validate_uploaded_object_for_job(payload: CreateJobRequest) -> ProbedVideoMe
 
 
 def build_job_response(
-    row: tuple[UUID, str, str, str, str, float, int, int],
+    row: tuple[
+        UUID,
+        str,
+        str,
+        str,
+        str,
+        float,
+        int,
+        int,
+        datetime | None,
+        datetime | None,
+        datetime | None,
+    ],
 ) -> JobResponse:
     return JobResponse(
         id=row[0],
@@ -382,6 +398,9 @@ def build_job_response(
         video_duration_seconds=row[5],
         video_width=row[6],
         video_height=row[7],
+        processing_started_at=row[8],
+        completed_at=row[9],
+        failed_at=row[10],
     )
 
 
@@ -431,7 +450,10 @@ def create_job(payload: CreateJobRequest) -> JobResponse:
                     input_object_key,
                     video_duration_seconds,
                     video_width,
-                    video_height
+                    video_height,
+                    processing_started_at,
+                    completed_at,
+                    failed_at
                 """,
                 (
                     job_id,
@@ -468,7 +490,10 @@ def get_job(job_id: UUID) -> JobResponse:
                     input_object_key,
                     video_duration_seconds,
                     video_width,
-                    video_height
+                    video_height,
+                    processing_started_at,
+                    completed_at,
+                    failed_at
                 FROM analysis_jobs
                 WHERE id = %s
                 """,
