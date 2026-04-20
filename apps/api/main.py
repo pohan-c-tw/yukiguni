@@ -12,7 +12,9 @@ from botocore.exceptions import ClientError
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
+from job_queue import get_job_queue
 from settings import get_required_env
+from tasks import process_analysis_job
 
 app = FastAPI()
 
@@ -460,6 +462,11 @@ def create_job(payload: CreateJobRequest) -> JobResponse:
 
     if row is None:
         raise HTTPException(status_code=500, detail="Failed to create job")
+
+    try:
+        get_job_queue().enqueue(process_analysis_job, str(job_id))
+    except Exception as error:
+        raise HTTPException(status_code=502, detail="Failed to enqueue job") from error
 
     return build_job_response(row)
 
