@@ -1,4 +1,4 @@
 {
-  "cSpell.words": ["presign"],
+  "cSpell.words": ["ffprobe", "presign", "pycache", "quicktime"],
   "python.defaultInterpreterPath": "${workspaceFolder}/apps/api/.venv/bin/python"
 }
