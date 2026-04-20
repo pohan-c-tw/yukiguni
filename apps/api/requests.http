@@ -81,8 +81,11 @@ Content-Type: application/json
 # Create a job only after the file has really been uploaded to object storage.
 # Keep `original_filename` and `content_type` aligned with the presign request above.
 # Replace `@objectKey` with the `object_key` returned from the presign request.
-# If this succeeds, the response should now include probed video metadata
-# such as `video_duration_seconds`, `video_width`, and `video_height`.
+# If this succeeds, the response should now include:
+# - probed video metadata: `video_duration_seconds`, `video_width`, `video_height`
+# - lifecycle timestamps: `processing_started_at`, `completed_at`, `failed_at`
+# The three lifecycle timestamps should currently be `null`, because no worker
+# is updating them yet.
 POST {{baseUrl}}/jobs
 Content-Type: application/json
 
@@ -116,6 +119,8 @@ Content-Type: application/json
 
 ### Get Job
 # Replace `@jobId` with the id returned from the create-job request.
+# Expect the same metadata fields as `Create Job`.
+# The lifecycle timestamps should still be `null` until a worker is introduced.
 GET {{baseUrl}}/jobs/{{jobId}}
 
 ### Get Missing Job
