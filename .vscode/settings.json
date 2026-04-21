@@ -1,4 +1,9 @@
 {
   "cSpell.words": ["ffprobe", "presign", "pycache", "quicktime"],
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.ruff_cache": true,
+    "**/.venv": true
+  },
   "python.defaultInterpreterPath": "${workspaceFolder}/apps/api/.venv/bin/python"
 }
