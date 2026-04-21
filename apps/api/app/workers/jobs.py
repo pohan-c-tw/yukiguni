@@ -29,6 +29,25 @@ def get_job_input_object_key_by_id(job_id: str) -> str:
     return row.input_object_key
 
 
+def get_job_status_by_id(job_id: str) -> JobStatus:
+    with psycopg.connect(get_database_url(), row_factory=namedtuple_row) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT status
+                FROM analysis_jobs
+                WHERE id = %s
+                """,
+                (job_id,),
+            )
+            row = cur.fetchone()
+
+    if row is None:
+        raise RuntimeError("Job not found")
+
+    return JobStatus(row.status)
+
+
 def update_job_to_processing(job_id: str) -> None:
     with psycopg.connect(get_database_url()) as conn:
         with conn.cursor() as cur:
@@ -50,7 +69,20 @@ def update_job_to_processing(job_id: str) -> None:
             updated_rows = cur.rowcount
 
     if updated_rows != 1:
-        raise JobStateTransitionError("Job is not claimable for processing")
+        current_status = get_job_status_by_id(job_id)
+
+        if current_status is JobStatus.PROCESSING:
+            raise JobStateTransitionError("Job is already being processed")
+
+        if current_status is JobStatus.DONE:
+            raise JobStateTransitionError("Job is already completed")
+
+        if current_status is JobStatus.FAILED:
+            raise JobStateTransitionError("Job has already failed")
+
+        raise JobStateTransitionError(
+            f"Job cannot transition from {current_status} to processing"
+        )
 
 
 def update_job_to_done(job_id: str, probed_video: ProbedVideoMetadata) -> None:
@@ -83,7 +115,10 @@ def update_job_to_done(job_id: str, probed_video: ProbedVideoMetadata) -> None:
             updated_rows = cur.rowcount
 
     if updated_rows != 1:
-        raise JobStateTransitionError("Job is not in processing state")
+        current_status = get_job_status_by_id(job_id)
+        raise JobStateTransitionError(
+            f"Job cannot transition from {current_status} to done"
+        )
 
 
 def update_job_to_failed(job_id: str, error_message: str) -> None:
@@ -106,4 +141,7 @@ def update_job_to_failed(job_id: str, error_message: str) -> None:
             updated_rows = cur.rowcount
 
     if updated_rows != 1:
-        raise JobStateTransitionError("Job is not in processing state")
+        current_status = get_job_status_by_id(job_id)
+        raise JobStateTransitionError(
+            f"Job cannot transition from {current_status} to failed"
+        )

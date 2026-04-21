@@ -23,8 +23,8 @@ def process_analysis_job(job_id: str) -> None:
 
     try:
         update_job_to_processing(job_id)
-    except JobStateTransitionError:
-        print(f"Skipped analysis job: {job_id}")
+    except JobStateTransitionError as error:
+        print(f"Skipped analysis job {job_id}: {error}")
         return
 
     try:
@@ -36,8 +36,10 @@ def process_analysis_job(job_id: str) -> None:
     except (ClientError, RuntimeError, ValueError) as error:
         try:
             update_job_to_failed(job_id, str(error))
-        except JobStateTransitionError:
-            print(f"Skipped failure update for analysis job: {job_id}")
+        except JobStateTransitionError as transition_error:
+            print(
+                f"Skipped failure update for analysis job {job_id}: {transition_error}"
+            )
         raise
     finally:
         cleanup_temp_file(temp_file_path)
