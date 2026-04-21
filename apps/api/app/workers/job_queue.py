@@ -1,7 +1,7 @@
 from redis import Redis
 from rq import Queue
 
-from app.settings import get_required_env
+from app.core.settings import get_required_env
 
 
 def get_redis_url() -> str:

@@ -6,7 +6,7 @@ import boto3
 from botocore.exceptions import ClientError
 from pydantic import BaseModel
 
-from app.settings import get_required_env
+from app.core.settings import get_required_env
 
 
 class R2Settings(BaseModel):
