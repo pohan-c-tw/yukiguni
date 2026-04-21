@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
-from validation import (
+from app.validation import (
     normalize_non_empty_text,
     validate_filename_like,
     validate_upload_content_type,

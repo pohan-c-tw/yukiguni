@@ -4,9 +4,9 @@ import psycopg
 from botocore.exceptions import ClientError
 from psycopg.rows import namedtuple_row
 
-from r2_storage import download_uploaded_object_to_tempfile
-from settings import get_database_url
-from video_probe import ProbedVideoMetadata, probe_video_file
+from app.r2_storage import download_uploaded_object_to_tempfile
+from app.settings import get_database_url
+from app.video_probe import ProbedVideoMetadata, probe_video_file
 
 
 def cleanup_temp_file(file_path: str | None) -> None:
