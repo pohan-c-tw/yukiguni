@@ -85,6 +85,7 @@ Content-Type: application/json
 # Expect the response to include:
 # - `status = "uploaded"`
 # - `video_duration_seconds`, `video_width`, `video_height` as `null`
+# - `error_message` as `null`
 # - lifecycle timestamps as `null` until the worker updates them
 POST {{baseUrl}}/jobs
 Content-Type: application/json
@@ -123,6 +124,7 @@ Content-Type: application/json
 # - `status` should become `processing`, then `done` or `failed`
 # - `video_duration_seconds`, `video_width`, and `video_height` should be filled
 #   after successful ffprobe validation in the worker
+# - if the worker fails, `error_message` should contain the failure reason
 GET {{baseUrl}}/jobs/{{jobId}}
 
 ### Get Missing Job

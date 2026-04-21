@@ -122,6 +122,7 @@ class JobResponse(BaseModel):
     video_duration_seconds: float | None
     video_width: int | None
     video_height: int | None
+    error_message: str | None
     processing_started_at: datetime | None
     completed_at: datetime | None
     failed_at: datetime | None
@@ -175,6 +176,7 @@ def build_job_response(
         float | None,
         int | None,
         int | None,
+        str | None,
         datetime | None,
         datetime | None,
         datetime | None,
@@ -189,9 +191,10 @@ def build_job_response(
         video_duration_seconds=row[5],
         video_width=row[6],
         video_height=row[7],
-        processing_started_at=row[8],
-        completed_at=row[9],
-        failed_at=row[10],
+        error_message=row[8],
+        processing_started_at=row[9],
+        completed_at=row[10],
+        failed_at=row[11],
     )
 
 
@@ -242,6 +245,7 @@ def create_job(payload: CreateJobRequest) -> JobResponse:
                     video_duration_seconds,
                     video_width,
                     video_height,
+                    error_message,
                     processing_started_at,
                     completed_at,
                     failed_at
@@ -282,6 +286,7 @@ def get_job(job_id: UUID) -> JobResponse:
                     video_duration_seconds,
                     video_width,
                     video_height,
+                    error_message,
                     processing_started_at,
                     completed_at,
                     failed_at
