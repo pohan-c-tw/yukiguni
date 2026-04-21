@@ -1,11 +1,10 @@
-from datetime import datetime
-from typing import Literal
+from typing import Any
 from uuid import UUID, uuid4
 
 import psycopg
 from botocore.exceptions import ClientError
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field, field_validator
+from psycopg.rows import namedtuple_row
 
 from job_queue import get_job_queue
 from r2_storage import (
@@ -14,118 +13,19 @@ from r2_storage import (
     generate_presigned_upload_url,
     get_uploaded_object_metadata,
 )
+from schemas import (
+    CreateJobRequest,
+    CreateUploadUrlRequest,
+    CreateUploadUrlResponse,
+    JobResponse,
+)
 from settings import get_database_url
 from tasks import process_analysis_job
+from validation import MAX_UPLOAD_FILE_SIZE_BYTES, validate_upload_content_type
 
 app = FastAPI()
 
-ALLOWED_UPLOAD_CONTENT_TYPES = {
-    "video/mp4",
-    "video/quicktime",
-    "video/webm",
-}
-MAX_UPLOAD_FILE_SIZE_BYTES = 100 * 1024 * 1024
 UPLOAD_URL_EXPIRES_IN_SECONDS = 900
-
-
-def normalize_non_empty_text(value: str, field_name: str) -> str:
-    normalized = value.strip()
-
-    if not normalized:
-        raise ValueError(f"{field_name} must not be empty")
-
-    return normalized
-
-
-def validate_filename_like(value: str, field_name: str) -> str:
-    normalized = normalize_non_empty_text(value, field_name)
-
-    if "/" in normalized or "\\" in normalized:
-        raise ValueError(f"{field_name} must not contain path separators")
-
-    return normalized
-
-
-def validate_upload_content_type(value: str) -> str:
-    normalized = normalize_non_empty_text(value, "content_type").lower()
-
-    if normalized not in ALLOWED_UPLOAD_CONTENT_TYPES:
-        raise ValueError("unsupported content_type")
-
-    return normalized
-
-
-def validate_upload_file_size(value: int) -> int:
-    if value <= 0:
-        raise ValueError("file_size must be greater than 0")
-
-    if value > MAX_UPLOAD_FILE_SIZE_BYTES:
-        raise ValueError("file_size exceeds the maximum allowed size")
-
-    return value
-
-
-class CreateUploadUrlRequest(BaseModel):
-    filename: str = Field(min_length=1, max_length=255)
-    content_type: str
-    file_size: int
-
-    @field_validator("filename")
-    @classmethod
-    def validate_filename(cls, value: str) -> str:
-        return validate_filename_like(value, "filename")
-
-    @field_validator("content_type")
-    @classmethod
-    def validate_content_type(cls, value: str) -> str:
-        return validate_upload_content_type(value)
-
-    @field_validator("file_size")
-    @classmethod
-    def validate_file_size(cls, value: int) -> int:
-        return validate_upload_file_size(value)
-
-
-class CreateUploadUrlResponse(BaseModel):
-    object_key: str
-    upload_url: str
-    expires_in_seconds: int
-
-
-class CreateJobRequest(BaseModel):
-    original_filename: str = Field(min_length=1, max_length=255)
-    content_type: str
-    input_object_key: str
-
-    @field_validator("original_filename")
-    @classmethod
-    def validate_original_filename(cls, value: str) -> str:
-        return validate_filename_like(value, "original_filename")
-
-    @field_validator("content_type")
-    @classmethod
-    def validate_job_content_type(cls, value: str) -> str:
-        return validate_upload_content_type(value)
-
-    @field_validator("input_object_key")
-    @classmethod
-    def validate_input_object_key(cls, value: str) -> str:
-        return normalize_non_empty_text(value, "input_object_key")
-
-
-class JobResponse(BaseModel):
-    id: UUID
-    status: Literal["uploaded", "validating", "processing", "done", "failed"]
-    original_filename: str
-    content_type: str
-    input_object_key: str
-    video_duration_seconds: float | None
-    video_width: int | None
-    video_height: int | None
-    error_message: str | None
-    processing_started_at: datetime | None
-    completed_at: datetime | None
-    failed_at: datetime | None
 
 
 def validate_uploaded_object_for_job(
@@ -167,52 +67,26 @@ def validate_uploaded_object_for_job(
 
 
 def build_job_response(
-    row: tuple[
-        UUID,
-        str,
-        str,
-        str,
-        str,
-        float | None,
-        int | None,
-        int | None,
-        str | None,
-        datetime | None,
-        datetime | None,
-        datetime | None,
-    ],
+    row: Any,
 ) -> JobResponse:
     return JobResponse(
-        id=row[0],
-        status=row[1],
-        original_filename=row[2],
-        content_type=row[3],
-        input_object_key=row[4],
-        video_duration_seconds=row[5],
-        video_width=row[6],
-        video_height=row[7],
-        error_message=row[8],
-        processing_started_at=row[9],
-        completed_at=row[10],
-        failed_at=row[11],
+        id=row.id,
+        status=row.status,
+        original_filename=row.original_filename,
+        content_type=row.content_type,
+        input_object_key=row.input_object_key,
+        video_duration_seconds=row.video_duration_seconds,
+        video_width=row.video_width,
+        video_height=row.video_height,
+        error_message=row.error_message,
+        processing_started_at=row.processing_started_at,
+        completed_at=row.completed_at,
+        failed_at=row.failed_at,
     )
 
 
-def mark_job_as_failed(job_id: UUID, error_message: str) -> tuple[
-    UUID,
-    str,
-    str,
-    str,
-    str,
-    float | None,
-    int | None,
-    int | None,
-    str | None,
-    datetime | None,
-    datetime | None,
-    datetime | None,
-]:
-    with psycopg.connect(get_database_url()) as conn:
+def mark_job_as_failed(job_id: UUID, error_message: str) -> Any:
+    with psycopg.connect(get_database_url(), row_factory=namedtuple_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -275,7 +149,7 @@ def create_upload_url(payload: CreateUploadUrlRequest) -> CreateUploadUrlRespons
 def create_job(payload: CreateJobRequest) -> JobResponse:
     validate_uploaded_object_for_job(payload)
 
-    with psycopg.connect(get_database_url()) as conn:
+    with psycopg.connect(get_database_url(), row_factory=namedtuple_row) as conn:
         with conn.cursor() as cur:
             job_id = uuid4()
             cur.execute(
@@ -329,7 +203,7 @@ def create_job(payload: CreateJobRequest) -> JobResponse:
 
 @app.get("/jobs/{job_id}", response_model=JobResponse)
 def get_job(job_id: UUID) -> JobResponse:
-    with psycopg.connect(get_database_url()) as conn:
+    with psycopg.connect(get_database_url(), row_factory=namedtuple_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
