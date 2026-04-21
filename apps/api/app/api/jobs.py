@@ -26,15 +26,15 @@ JOB_RESPONSE_COLUMNS = """
 JOB_RESPONSE_SELECT_SQL = "SELECT" + JOB_RESPONSE_COLUMNS + "\nFROM analysis_jobs"
 
 
-def build_job_response(
+def build_job_response_from_row(
     row: Any,
 ) -> JobResponse:
     return JobResponse.model_validate(row._asdict())
 
 
-def insert_job(
-    payload: CreateJobRequest,
+def insert_job_and_return_row(
     job_id: UUID,
+    payload: CreateJobRequest,
 ) -> Any:
     with psycopg.connect(get_database_url(), row_factory=namedtuple_row) as conn:
         with conn.cursor() as cur:
@@ -62,7 +62,7 @@ def insert_job(
             return cur.fetchone()
 
 
-def get_job_by_id(job_id: UUID) -> Any:
+def get_job_row_by_id(job_id: UUID) -> Any:
     with psycopg.connect(get_database_url(), row_factory=namedtuple_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -75,7 +75,7 @@ def get_job_by_id(job_id: UUID) -> Any:
             return cur.fetchone()
 
 
-def mark_job_as_failed(job_id: UUID, error_message: str) -> Any:
+def mark_job_as_failed_and_return_row(job_id: UUID, error_message: str) -> Any:
     with psycopg.connect(get_database_url(), row_factory=namedtuple_row) as conn:
         with conn.cursor() as cur:
             cur.execute(

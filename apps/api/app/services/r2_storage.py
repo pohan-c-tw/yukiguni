@@ -82,6 +82,7 @@ def get_uploaded_object_metadata(object_key: str) -> UploadedObjectMetadata:
 def download_uploaded_object_to_tempfile(object_key: str) -> str:
     settings = get_r2_settings()
     r2_client = create_r2_client()
+
     _, suffix = os.path.splitext(object_key)
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:

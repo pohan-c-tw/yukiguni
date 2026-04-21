@@ -54,7 +54,7 @@ def downgrade() -> None:
 
     op.alter_column(
         "analysis_jobs",
-        "video_duration_seconds",
+        "video_height",
         nullable=False,
     )
     op.alter_column(
@@ -64,6 +64,6 @@ def downgrade() -> None:
     )
     op.alter_column(
         "analysis_jobs",
-        "video_height",
+        "video_duration_seconds",
         nullable=False,
     )

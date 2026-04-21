@@ -6,7 +6,7 @@ from app.core.settings import get_database_url
 from app.services.video_probe import ProbedVideoMetadata
 
 
-def get_job_input_object_key(job_id: str) -> str:
+def get_job_input_object_key_by_id(job_id: str) -> str:
     with psycopg.connect(get_database_url(), row_factory=namedtuple_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -25,7 +25,7 @@ def get_job_input_object_key(job_id: str) -> str:
     return row.input_object_key
 
 
-def mark_job_as_processing(job_id: str) -> None:
+def update_job_to_processing(job_id: str) -> None:
     with psycopg.connect(get_database_url()) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -41,7 +41,7 @@ def mark_job_as_processing(job_id: str) -> None:
             )
 
 
-def mark_job_as_done(job_id: str, probed_video: ProbedVideoMetadata) -> None:
+def update_job_to_done(job_id: str, probed_video: ProbedVideoMetadata) -> None:
     with psycopg.connect(get_database_url()) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -66,7 +66,7 @@ def mark_job_as_done(job_id: str, probed_video: ProbedVideoMetadata) -> None:
             )
 
 
-def mark_job_as_failed(job_id: str, error_message: str) -> None:
+def update_job_to_failed(job_id: str, error_message: str) -> None:
     with psycopg.connect(get_database_url()) as conn:
         with conn.cursor() as cur:
             cur.execute(

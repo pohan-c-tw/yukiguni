@@ -51,7 +51,7 @@ class CreateJobRequest(BaseModel):
 
     @field_validator("content_type")
     @classmethod
-    def validate_job_content_type(cls, value: str) -> str:
+    def validate_content_type(cls, value: str) -> str:
         return validate_upload_content_type(value)
 
     @field_validator("input_object_key")
