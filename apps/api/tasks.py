@@ -2,15 +2,20 @@ import os
 
 import psycopg
 from botocore.exceptions import ClientError
-from psycopg.rows import tuple_row
+from psycopg.rows import namedtuple_row
 
 from r2_storage import download_uploaded_object_to_tempfile
 from settings import get_database_url
 from video_probe import ProbedVideoMetadata, probe_video_file
 
 
+def cleanup_temp_file(file_path: str | None) -> None:
+    if file_path and os.path.exists(file_path):
+        os.unlink(file_path)
+
+
 def get_job_input_object_key(job_id: str) -> str:
-    with psycopg.connect(get_database_url(), row_factory=tuple_row) as conn:
+    with psycopg.connect(get_database_url(), row_factory=namedtuple_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -25,7 +30,7 @@ def get_job_input_object_key(job_id: str) -> str:
     if row is None:
         raise RuntimeError("Job not found")
 
-    return row[0]
+    return row.input_object_key
 
 
 def mark_job_as_processing(job_id: str) -> None:
@@ -100,5 +105,4 @@ def process_analysis_job(job_id: str) -> None:
         mark_job_as_failed(job_id, str(error))
         raise
     finally:
-        if temp_file_path and os.path.exists(temp_file_path):
-            os.unlink(temp_file_path)
+        cleanup_temp_file(temp_file_path)
