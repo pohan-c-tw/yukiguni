@@ -23,4 +23,4 @@ COPY app ./app
 
 EXPOSE 8000
 
-CMD ["uv", "run", "--no-dev", "uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uv run --no-dev uvicorn app.api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
