@@ -18,7 +18,11 @@ def validate_uploaded_object_for_job(
         status_code = error.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
         error_code = error.response.get("Error", {}).get("Code")
 
-        if status_code == 404 or error_code in {"404", "NoSuchKey"}:
+        if status_code == 404 or error_code in {
+            "404",
+            "NotFound",
+            "NoSuchKey",
+        }:
             raise HTTPException(
                 status_code=400,
                 detail="Uploaded object not found",
