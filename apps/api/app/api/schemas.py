@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -10,6 +9,7 @@ from app.api.validation import (
     validate_upload_content_type,
     validate_upload_file_size,
 )
+from app.core.job_status import JobStatus
 
 
 class CreateUploadUrlRequest(BaseModel):
@@ -62,7 +62,7 @@ class CreateJobRequest(BaseModel):
 
 class JobResponse(BaseModel):
     id: UUID
-    status: Literal["uploaded", "validating", "processing", "done", "failed"]
+    status: JobStatus
     original_filename: str
     content_type: str
     input_object_key: str
