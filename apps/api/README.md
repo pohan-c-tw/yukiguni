@@ -58,6 +58,14 @@ Then start the worker:
 uv run rq worker analysis-jobs
 ```
 
+## Manual API Requests
+
+The REST Client request collection is located at:
+
+```text
+http/requests.http
+```
+
 ## Current Flow
 
 The local MVP flow is currently:
@@ -67,3 +75,4 @@ The local MVP flow is currently:
 3. Call `POST /jobs`.
 4. The API creates an `analysis_jobs` row and enqueues a background task.
 5. The worker downloads the uploaded video, runs `ffprobe`, and updates the job status in Postgres.
+6. Successful jobs are marked as `done`; failed jobs are marked as `failed` with an error message.
