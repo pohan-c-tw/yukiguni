@@ -6,6 +6,10 @@ from app.core.settings import get_database_url
 from app.services.video_probe import ProbedVideoMetadata
 
 
+class JobStateTransitionError(RuntimeError):
+    pass
+
+
 def get_job_input_object_key_by_id(job_id: str) -> str:
     with psycopg.connect(get_database_url(), row_factory=namedtuple_row) as conn:
         with conn.cursor() as cur:
@@ -33,12 +37,20 @@ def update_job_to_processing(job_id: str) -> None:
                 UPDATE analysis_jobs
                 SET
                     status = %s,
+                    error_message = NULL,
                     processing_started_at = NOW(),
+                    completed_at = NULL,
+                    failed_at = NULL,
                     updated_at = NOW()
                 WHERE id = %s
+                  AND status = %s
                 """,
-                (JobStatus.PROCESSING, job_id),
+                (JobStatus.PROCESSING, job_id, JobStatus.UPLOADED),
             )
+            updated_rows = cur.rowcount
+
+    if updated_rows != 1:
+        raise JobStateTransitionError("Job is not claimable for processing")
 
 
 def update_job_to_done(job_id: str, probed_video: ProbedVideoMetadata) -> None:
@@ -52,9 +64,12 @@ def update_job_to_done(job_id: str, probed_video: ProbedVideoMetadata) -> None:
                     video_duration_seconds = %s,
                     video_width = %s,
                     video_height = %s,
+                    error_message = NULL,
                     completed_at = NOW(),
+                    failed_at = NULL,
                     updated_at = NOW()
                 WHERE id = %s
+                  AND status = %s
                 """,
                 (
                     JobStatus.DONE,
@@ -62,8 +77,13 @@ def update_job_to_done(job_id: str, probed_video: ProbedVideoMetadata) -> None:
                     probed_video.width,
                     probed_video.height,
                     job_id,
+                    JobStatus.PROCESSING,
                 ),
             )
+            updated_rows = cur.rowcount
+
+    if updated_rows != 1:
+        raise JobStateTransitionError("Job is not in processing state")
 
 
 def update_job_to_failed(job_id: str, error_message: str) -> None:
@@ -75,9 +95,15 @@ def update_job_to_failed(job_id: str, error_message: str) -> None:
                 SET
                     status = %s,
                     error_message = %s,
+                    completed_at = NULL,
                     failed_at = NOW(),
                     updated_at = NOW()
                 WHERE id = %s
+                  AND status = %s
                 """,
-                (JobStatus.FAILED, error_message, job_id),
+                (JobStatus.FAILED, error_message, job_id, JobStatus.PROCESSING),
             )
+            updated_rows = cur.rowcount
+
+    if updated_rows != 1:
+        raise JobStateTransitionError("Job is not in processing state")
