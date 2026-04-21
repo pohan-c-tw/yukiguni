@@ -1,4 +1,12 @@
 {
+  "[python]": {
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    },
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true
+  },
   "cSpell.words": ["ffprobe", "presign", "pycache", "quicktime"],
   "files.exclude": {
     "**/__pycache__": true,
