@@ -33,7 +33,7 @@ uv run alembic upgrade head
 Start the FastAPI development server:
 
 ```bash
-uv run uvicorn main:app --reload
+uv run uvicorn app.main:app --reload
 ```
 
 Optional health check:
