@@ -198,6 +198,58 @@ def build_job_response(
     )
 
 
+def mark_job_as_failed(job_id: UUID, error_message: str) -> tuple[
+    UUID,
+    str,
+    str,
+    str,
+    str,
+    float | None,
+    int | None,
+    int | None,
+    str | None,
+    datetime | None,
+    datetime | None,
+    datetime | None,
+]:
+    with psycopg.connect(get_database_url()) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE analysis_jobs
+                SET
+                    status = %s,
+                    error_message = %s,
+                    failed_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = %s
+                RETURNING
+                    id,
+                    status,
+                    original_filename,
+                    content_type,
+                    input_object_key,
+                    video_duration_seconds,
+                    video_width,
+                    video_height,
+                    error_message,
+                    processing_started_at,
+                    completed_at,
+                    failed_at
+                """,
+                ("failed", error_message, job_id),
+            )
+            row = cur.fetchone()
+
+    if row is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update job failure state",
+        )
+
+    return row
+
+
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
@@ -266,7 +318,11 @@ def create_job(payload: CreateJobRequest) -> JobResponse:
     try:
         get_job_queue().enqueue(process_analysis_job, str(job_id))
     except Exception as error:
-        raise HTTPException(status_code=502, detail="Failed to enqueue job") from error
+        row = mark_job_as_failed(job_id, "Failed to enqueue job")
+        raise HTTPException(
+            status_code=502,
+            detail=build_job_response(row).model_dump(),
+        ) from error
 
     return build_job_response(row)
 
