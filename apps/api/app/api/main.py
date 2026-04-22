@@ -1,6 +1,7 @@
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.jobs import (
     build_job_response_from_row,
@@ -15,6 +16,7 @@ from app.api.schemas import (
     JobResponse,
 )
 from app.api.upload_validation import validate_uploaded_object_for_job
+from app.core.settings import get_cors_allow_origins
 from app.services.r2_storage import (
     build_upload_object_key,
     generate_presigned_upload_url,
@@ -25,6 +27,17 @@ from app.workers.tasks import process_analysis_job
 UPLOAD_URL_EXPIRES_IN_SECONDS = 900
 
 app = FastAPI()
+
+cors_allow_origins = get_cors_allow_origins()
+
+if cors_allow_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_allow_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["*"],
+    )
 
 
 @app.get("/health")
