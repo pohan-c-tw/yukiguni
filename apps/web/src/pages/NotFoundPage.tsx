@@ -1,6 +1,4 @@
 // TODO
-function NotFoundPage() {
+export function NotFoundPage() {
   return <div>NotFoundPage</div>
 }
-
-export default NotFoundPage

@@ -1,6 +1,4 @@
 // TODO
-function HomePage() {
+export function HomePage() {
   return <div>HomePage</div>
 }
-
-export default HomePage
