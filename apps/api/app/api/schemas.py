@@ -4,10 +4,10 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 
 from app.api.validation import (
-    normalize_non_empty_text,
     validate_filename_like,
     validate_upload_content_type,
     validate_upload_file_size,
+    validate_upload_object_key,
 )
 from app.core.job_status import JobStatus
 
@@ -57,7 +57,7 @@ class CreateJobRequest(BaseModel):
     @field_validator("input_object_key")
     @classmethod
     def validate_input_object_key(cls, value: str) -> str:
-        return normalize_non_empty_text(value, "input_object_key")
+        return validate_upload_object_key(value)
 
 
 class JobResponse(BaseModel):

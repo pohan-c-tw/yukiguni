@@ -4,6 +4,7 @@ ALLOWED_UPLOAD_CONTENT_TYPES = {
     "video/webm",
 }
 MAX_UPLOAD_FILE_SIZE_BYTES = 100 * 1024 * 1024
+UPLOAD_OBJECT_KEY_PREFIX = "uploads/"
 
 
 def normalize_non_empty_text(value: str, field_name: str) -> str:
@@ -41,3 +42,12 @@ def validate_upload_file_size(value: int) -> int:
         raise ValueError("file_size exceeds the maximum allowed size")
 
     return value
+
+
+def validate_upload_object_key(value: str) -> str:
+    normalized = normalize_non_empty_text(value, "input_object_key")
+
+    if not normalized.startswith(UPLOAD_OBJECT_KEY_PREFIX):
+        raise ValueError(f"input_object_key must start with {UPLOAD_OBJECT_KEY_PREFIX}")
+
+    return normalized
