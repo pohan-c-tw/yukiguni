@@ -3,6 +3,8 @@ import subprocess
 
 from pydantic import BaseModel
 
+FFPROBE_TIMEOUT_SECONDS = 30
+
 
 class ProbedVideoMetadata(BaseModel):
     duration_seconds: float
@@ -21,12 +23,16 @@ def probe_video_file(file_path: str) -> ProbedVideoMetadata:
         "-show_streams",
         file_path,
     ]
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=FFPROBE_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise ValueError("Timed out while probing uploaded video") from error
 
     if result.returncode != 0:
         raise ValueError("Uploaded object is not a valid video")
