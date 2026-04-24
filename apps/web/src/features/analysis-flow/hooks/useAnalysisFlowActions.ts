@@ -13,10 +13,45 @@ import type {
   UploadUrlResponse,
 } from '@/features/analysis-flow/types'
 
+type FlowResultKey = 'presignResult' | 'uploadCompletedAt' | 'createdJob'
+
+type FlowStepDefinition = {
+  stepsToReset: StepKey[]
+  resultsToClear: FlowResultKey[]
+}
+
 const initialStepStates: StepStates = {
   presign: { status: 'idle', error: null },
   upload: { status: 'idle', error: null },
   'create-job': { status: 'idle', error: null },
+}
+
+const flowStepDefinitions: Record<StepKey, FlowStepDefinition> = {
+  presign: {
+    stepsToReset: ['upload', 'create-job'],
+    resultsToClear: ['presignResult', 'uploadCompletedAt', 'createdJob'],
+  },
+  upload: {
+    stepsToReset: ['create-job'],
+    resultsToClear: ['uploadCompletedAt', 'createdJob'],
+  },
+  'create-job': {
+    stepsToReset: [],
+    resultsToClear: ['createdJob'],
+  },
+}
+
+function resetStepStates(
+  currentState: StepStates,
+  stepsToReset: StepKey[],
+): StepStates {
+  return stepsToReset.reduce(
+    (nextState, step) => ({
+      ...nextState,
+      [step]: { status: 'idle', error: null },
+    }),
+    currentState,
+  )
 }
 
 function createNextStepStates(
@@ -54,8 +89,7 @@ export function useAnalysisFlowActions() {
     [stepStates],
   )
 
-  const handleFileChange = (file: File | null) => {
-    setSelectedFile(file)
+  const clearFlowResultsForFileChange = () => {
     setStepStates(initialStepStates)
     setPresignResult(null)
     setUploadCompletedAt(null)
@@ -63,29 +97,31 @@ export function useAnalysisFlowActions() {
     setRunAllError(null)
   }
 
+  const handleFileChange = (file: File | null) => {
+    setSelectedFile(file)
+    clearFlowResultsForFileChange()
+  }
+
   const clearResultsFromStep = (step: StepKey) => {
-    setRunAllError(null)
+    const definition = flowStepDefinitions[step]
 
-    if (step === 'presign') {
-      setStepStates((currentState) => ({
-        presign: currentState.presign,
-        upload: { status: 'idle', error: null },
-        'create-job': { status: 'idle', error: null },
-      }))
+    setStepStates((currentState) =>
+      resetStepStates(currentState, definition.stepsToReset),
+    )
+
+    if (definition.resultsToClear.includes('presignResult')) {
       setPresignResult(null)
-      setUploadCompletedAt(null)
-      setCreatedJob(null)
-      return
     }
 
-    if (step === 'upload') {
-      setStepStates((currentState) => ({
-        ...currentState,
-        'create-job': { status: 'idle', error: null },
-      }))
+    if (definition.resultsToClear.includes('uploadCompletedAt')) {
       setUploadCompletedAt(null)
+    }
+
+    if (definition.resultsToClear.includes('createdJob')) {
       setCreatedJob(null)
     }
+
+    setRunAllError(null)
   }
 
   const runStep = async <T>(
@@ -115,60 +151,73 @@ export function useAnalysisFlowActions() {
   }
 
   const requestPresignUrl = async (): Promise<UploadUrlResponse> => {
+    clearResultsFromStep('presign')
+
     return runStep('presign', async () => {
-      if (!selectedFile) {
+      const file = selectedFile
+
+      if (!file) {
         throw new Error(
           'Choose a video file before requesting a presigned URL.',
         )
       }
 
-      clearResultsFromStep('presign')
-
       const response = await createUploadUrl({
-        filename: selectedFile.name,
-        content_type: selectedFile.type,
-        file_size: selectedFile.size,
+        filename: file.name,
+        content_type: file.type,
+        file_size: file.size,
       })
       setPresignResult(response)
       return response
     })
   }
 
-  const uploadToPresignedUrl = async (): Promise<void> => {
+  const uploadToPresignedUrl = async (
+    nextPresignResult = presignResult,
+  ): Promise<void> => {
+    clearResultsFromStep('upload')
+
     await runStep('upload', async () => {
-      if (!selectedFile) {
+      const file = selectedFile
+
+      if (!file) {
         throw new Error('Choose a video file before uploading.')
       }
 
-      if (!presignResult) {
+      if (!nextPresignResult) {
         throw new Error('Request a presigned URL before uploading to R2.')
       }
 
-      clearResultsFromStep('upload')
-
-      await uploadFileToR2(presignResult.upload_url, selectedFile)
+      await uploadFileToR2(nextPresignResult.upload_url, file)
       setUploadCompletedAt(new Date().toISOString())
     })
   }
 
-  const createAnalysisJob = async (): Promise<JobResponse> => {
+  const createAnalysisJob = async (
+    nextPresignResult = presignResult,
+    hasUploaded = Boolean(uploadCompletedAt),
+  ): Promise<JobResponse> => {
+    clearResultsFromStep('create-job')
+
     return runStep('create-job', async () => {
-      if (!selectedFile) {
+      const file = selectedFile
+
+      if (!file) {
         throw new Error('Choose a video file before creating a job.')
       }
 
-      if (!presignResult) {
+      if (!nextPresignResult) {
         throw new Error('Request a presigned URL before creating a job.')
       }
 
-      if (!uploadCompletedAt) {
+      if (!hasUploaded) {
         throw new Error('Upload the file to R2 before creating a job.')
       }
 
       const payload: CreateJobRequest = {
-        original_filename: selectedFile.name,
-        content_type: selectedFile.type,
-        input_object_key: presignResult.object_key,
+        original_filename: file.name,
+        content_type: file.type,
+        input_object_key: nextPresignResult.object_key,
       }
       const job = await createJob(payload)
       setCreatedJob(job)
@@ -178,31 +227,11 @@ export function useAnalysisFlowActions() {
 
   const runAll = async (): Promise<JobResponse> => {
     try {
-      if (!selectedFile) {
-        throw new Error('Choose a video file before running the full flow.')
-      }
-
       const nextPresignResult = await requestPresignUrl()
 
-      if (!nextPresignResult) {
-        throw new Error('Failed to request a presigned URL.')
-      }
+      await uploadToPresignedUrl(nextPresignResult)
 
-      await runStep('upload', async () => {
-        await uploadFileToR2(nextPresignResult.upload_url, selectedFile)
-        setUploadCompletedAt(new Date().toISOString())
-      })
-
-      return await runStep('create-job', async () => {
-        const payload: CreateJobRequest = {
-          original_filename: selectedFile.name,
-          content_type: selectedFile.type,
-          input_object_key: nextPresignResult.object_key,
-        }
-        const job = await createJob(payload)
-        setCreatedJob(job)
-        return job
-      })
+      return await createAnalysisJob(nextPresignResult, true)
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Run all failed unexpectedly'

@@ -88,6 +88,7 @@ export function FlowActionPanel({
             <FileInput
               accept="video/mp4,video/quicktime,video/webm"
               clearable
+              disabled={isBusy}
               label="Video file"
               placeholder="Select a video"
               value={selectedFile}
