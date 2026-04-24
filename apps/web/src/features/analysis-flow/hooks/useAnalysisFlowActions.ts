@@ -113,13 +113,15 @@ export function useAnalysisFlowActions() {
   }
 
   const requestPresignUrl = async (): Promise<UploadUrlResponse> => {
-    if (!selectedFile) {
-      throw new Error('Choose a video file before requesting a presigned URL.')
-    }
-
-    resetDependentResults('presign')
-
     return runStep('presign', async () => {
+      if (!selectedFile) {
+        throw new Error(
+          'Choose a video file before requesting a presigned URL.',
+        )
+      }
+
+      resetDependentResults('presign')
+
       const response = await createUploadUrl({
         filename: selectedFile.name,
         content_type: selectedFile.type,
@@ -131,36 +133,36 @@ export function useAnalysisFlowActions() {
   }
 
   const uploadToPresignedUrl = async (): Promise<void> => {
-    if (!selectedFile) {
-      throw new Error('Choose a video file before uploading.')
-    }
-
-    if (!presignResult) {
-      throw new Error('Request a presigned URL before uploading to R2.')
-    }
-
-    resetDependentResults('upload')
-
     await runStep('upload', async () => {
+      if (!selectedFile) {
+        throw new Error('Choose a video file before uploading.')
+      }
+
+      if (!presignResult) {
+        throw new Error('Request a presigned URL before uploading to R2.')
+      }
+
+      resetDependentResults('upload')
+
       await uploadFileToR2(presignResult.upload_url, selectedFile)
       setUploadCompletedAt(new Date().toISOString())
     })
   }
 
   const createAnalysisJob = async (): Promise<JobResponse> => {
-    if (!selectedFile) {
-      throw new Error('Choose a video file before creating a job.')
-    }
-
-    if (!presignResult) {
-      throw new Error('Request a presigned URL before creating a job.')
-    }
-
-    if (!uploadCompletedAt) {
-      throw new Error('Upload the file to R2 before creating a job.')
-    }
-
     return runStep('create-job', async () => {
+      if (!selectedFile) {
+        throw new Error('Choose a video file before creating a job.')
+      }
+
+      if (!presignResult) {
+        throw new Error('Request a presigned URL before creating a job.')
+      }
+
+      if (!uploadCompletedAt) {
+        throw new Error('Upload the file to R2 before creating a job.')
+      }
+
       const payload: CreateJobRequest = {
         original_filename: selectedFile.name,
         content_type: selectedFile.type,
