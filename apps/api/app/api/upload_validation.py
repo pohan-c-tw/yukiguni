@@ -42,7 +42,13 @@ def validate_uploaded_object_for_job(
             detail="Uploaded object exceeds the maximum allowed size",
         )
 
-    normalized_content_type = validate_upload_content_type(metadata.content_type)
+    try:
+        normalized_content_type = validate_upload_content_type(metadata.content_type)
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded object has unsupported content type",
+        ) from error
 
     if normalized_content_type != payload.content_type:
         raise HTTPException(
