@@ -63,7 +63,7 @@ export function useAnalysisFlowActions() {
     setRunAllError(null)
   }
 
-  const resetDependentResults = (step: StepKey) => {
+  const clearResultsFromStep = (step: StepKey) => {
     setRunAllError(null)
 
     if (step === 'presign') {
@@ -72,6 +72,7 @@ export function useAnalysisFlowActions() {
         upload: { status: 'idle', error: null },
         'create-job': { status: 'idle', error: null },
       }))
+      setPresignResult(null)
       setUploadCompletedAt(null)
       setCreatedJob(null)
       return
@@ -82,6 +83,7 @@ export function useAnalysisFlowActions() {
         ...currentState,
         'create-job': { status: 'idle', error: null },
       }))
+      setUploadCompletedAt(null)
       setCreatedJob(null)
     }
   }
@@ -120,7 +122,7 @@ export function useAnalysisFlowActions() {
         )
       }
 
-      resetDependentResults('presign')
+      clearResultsFromStep('presign')
 
       const response = await createUploadUrl({
         filename: selectedFile.name,
@@ -142,7 +144,7 @@ export function useAnalysisFlowActions() {
         throw new Error('Request a presigned URL before uploading to R2.')
       }
 
-      resetDependentResults('upload')
+      clearResultsFromStep('upload')
 
       await uploadFileToR2(presignResult.upload_url, selectedFile)
       setUploadCompletedAt(new Date().toISOString())
