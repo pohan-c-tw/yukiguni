@@ -1,14 +1,10 @@
-from typing import Any
-
 from botocore.exceptions import ClientError
 
+from app.services.analysis_results import build_analysis_result
 from app.services.r2_storage import download_uploaded_object_to_tempfile
 from app.services.temp_files import remove_file_if_exists
-from app.services.video_normalize import (
-    NormalizedVideoResult,
-    normalize_video_for_analysis,
-)
-from app.services.video_probe import ProbedVideoMetadata, probe_video_file
+from app.services.video_normalize import normalize_video_for_analysis
+from app.services.video_probe import probe_video_file
 from app.workers.job_state import (
     JobStateTransitionError,
     get_job_input_object_key_by_id,
@@ -16,23 +12,6 @@ from app.workers.job_state import (
     update_job_to_failed,
     update_job_to_processing,
 )
-
-
-def build_analysis_result(
-    probed_video: ProbedVideoMetadata,
-    normalized_video_result: NormalizedVideoResult,
-) -> dict[str, Any]:
-    return {
-        "normalization": {
-            "enabled": True,
-            "timing_mode": "cfr",
-            "target_fps": normalized_video_result.target_fps,
-            "max_long_edge": normalized_video_result.max_long_edge,
-            "stored_object_key": None,
-        },
-        "original_video": probed_video.model_dump(),
-        "analysis_video": normalized_video_result.metadata.model_dump(),
-    }
 
 
 def process_analysis_job(job_id: str) -> None:
