@@ -4,6 +4,7 @@ from psycopg.types.json import Jsonb
 
 from app.core.job_status import JobStatus
 from app.core.settings import get_database_url
+from app.services.analysis_results import AnalysisResult
 from app.services.video_probe import ProbedVideoMetadata
 
 
@@ -90,7 +91,7 @@ def update_job_to_processing(job_id: str) -> None:
 def update_job_to_done(
     job_id: str,
     probed_video: ProbedVideoMetadata,
-    analysis_result: dict | None = None,
+    analysis_result: AnalysisResult | None = None,
 ) -> None:
     with psycopg.connect(get_database_url()) as conn:
         with conn.cursor() as cur:
@@ -115,7 +116,9 @@ def update_job_to_done(
                     probed_video.duration_seconds,
                     probed_video.width,
                     probed_video.height,
-                    Jsonb(analysis_result) if analysis_result is not None else None,
+                    Jsonb(analysis_result.model_dump())
+                    if analysis_result is not None
+                    else None,
                     job_id,
                     JobStatus.PROCESSING,
                 ),

@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -11,6 +10,7 @@ from app.api.validation import (
     validate_upload_object_key,
 )
 from app.core.job_status import JobStatus
+from app.services.analysis_results import AnalysisResult
 
 
 class CreateUploadUrlRequest(BaseModel):
@@ -70,7 +70,7 @@ class JobResponse(BaseModel):
     video_duration_seconds: float | None
     video_width: int | None
     video_height: int | None
-    analysis_result: dict[str, Any] | None
+    analysis_result: AnalysisResult | None
     error_message: str | None
     processing_started_at: datetime | None
     completed_at: datetime | None
