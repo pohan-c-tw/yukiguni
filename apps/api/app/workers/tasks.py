@@ -9,7 +9,7 @@ from app.services.video_normalize import (
     normalize_video_for_analysis,
 )
 from app.services.video_probe import ProbedVideoMetadata, probe_video_file
-from app.workers.jobs import (
+from app.workers.job_state import (
     JobStateTransitionError,
     get_job_input_object_key_by_id,
     update_job_to_done,

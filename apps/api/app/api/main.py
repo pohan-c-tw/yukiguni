@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.jobs import (
+from app.api.job_rows import (
     build_job_response_from_row,
     get_job_row_by_id,
     insert_job_and_return_row,
