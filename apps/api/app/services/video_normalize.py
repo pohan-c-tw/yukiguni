@@ -1,10 +1,9 @@
-import os
 import subprocess
 import tempfile
-from pathlib import Path
 
 from pydantic import BaseModel
 
+from app.services.temp_files import remove_file_if_exists
 from app.services.video_probe import ProbedVideoMetadata, probe_video_file
 
 MAX_ANALYSIS_FPS = 60.0
@@ -44,12 +43,6 @@ def build_analysis_video_filter(target_fps: float) -> str:
         f"'if(gte(iw,ih),-2,min({MAX_ANALYSIS_LONG_EDGE},ih))'"
     )
     return f"{scale_filter},fps={target_fps}"
-
-
-def cleanup_output_file(file_path: str) -> None:
-    path = Path(file_path)
-    if path.exists():
-        os.unlink(path)
 
 
 def normalize_video_for_analysis(
@@ -94,18 +87,18 @@ def normalize_video_for_analysis(
             timeout=FFMPEG_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired as error:
-        cleanup_output_file(output_file_path)
+        remove_file_if_exists(output_file_path)
         raise ValueError("Timed out while normalizing video for analysis") from error
 
     if result.returncode != 0:
-        cleanup_output_file(output_file_path)
+        remove_file_if_exists(output_file_path)
         error_message = result.stderr.strip() or "ffmpeg exited with an error"
         raise ValueError(f"Failed to normalize video for analysis: {error_message}")
 
     try:
         normalized_metadata = probe_video_file(output_file_path)
     except Exception:
-        cleanup_output_file(output_file_path)
+        remove_file_if_exists(output_file_path)
         raise
 
     return NormalizedVideoResult(

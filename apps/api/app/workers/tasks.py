@@ -1,8 +1,7 @@
-import os
-
 from botocore.exceptions import ClientError
 
 from app.services.r2_storage import download_uploaded_object_to_tempfile
+from app.services.temp_files import remove_file_if_exists
 from app.services.video_normalize import normalize_video_for_analysis
 from app.services.video_probe import probe_video_file
 from app.workers.jobs import (
@@ -26,11 +25,6 @@ def build_analysis_result(probed_video, normalized_video_result) -> dict:
         "original_video": probed_video.model_dump(),
         "analysis_video": normalized_video_result.metadata.model_dump(),
     }
-
-
-def cleanup_temp_file(file_path: str | None) -> None:
-    if file_path and os.path.exists(file_path):
-        os.unlink(file_path)
 
 
 def process_analysis_job(job_id: str) -> None:
@@ -66,5 +60,5 @@ def process_analysis_job(job_id: str) -> None:
             )
         raise
     finally:
-        cleanup_temp_file(temp_file_path)
-        cleanup_temp_file(normalized_file_path)
+        remove_file_if_exists(temp_file_path)
+        remove_file_if_exists(normalized_file_path)

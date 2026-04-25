@@ -7,6 +7,7 @@ from botocore.exceptions import ClientError
 from pydantic import BaseModel
 
 from app.core.settings import get_required_env
+from app.services.temp_files import remove_file_if_exists
 
 
 class R2Settings(BaseModel):
@@ -96,7 +97,7 @@ def download_uploaded_object_to_tempfile(object_key: str) -> str:
                 Fileobj=file_handle,
             )
     except ClientError:
-        os.unlink(temp_file_path)
+        remove_file_if_exists(temp_file_path)
         raise
 
     return temp_file_path
