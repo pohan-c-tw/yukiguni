@@ -1,5 +1,6 @@
 import psycopg
 from psycopg.rows import namedtuple_row
+from psycopg.types.json import Jsonb
 
 from app.core.job_status import JobStatus
 from app.core.settings import get_database_url
@@ -56,6 +57,7 @@ def update_job_to_processing(job_id: str) -> None:
                 UPDATE analysis_jobs
                 SET
                     status = %s,
+                    analysis_result = NULL,
                     error_message = NULL,
                     processing_started_at = NOW(),
                     completed_at = NULL,
@@ -85,7 +87,11 @@ def update_job_to_processing(job_id: str) -> None:
         )
 
 
-def update_job_to_done(job_id: str, probed_video: ProbedVideoMetadata) -> None:
+def update_job_to_done(
+    job_id: str,
+    probed_video: ProbedVideoMetadata,
+    analysis_result: dict | None = None,
+) -> None:
     with psycopg.connect(get_database_url()) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -96,6 +102,7 @@ def update_job_to_done(job_id: str, probed_video: ProbedVideoMetadata) -> None:
                     video_duration_seconds = %s,
                     video_width = %s,
                     video_height = %s,
+                    analysis_result = %s,
                     error_message = NULL,
                     completed_at = NOW(),
                     failed_at = NULL,
@@ -108,6 +115,7 @@ def update_job_to_done(job_id: str, probed_video: ProbedVideoMetadata) -> None:
                     probed_video.duration_seconds,
                     probed_video.width,
                     probed_video.height,
+                    Jsonb(analysis_result) if analysis_result is not None else None,
                     job_id,
                     JobStatus.PROCESSING,
                 ),

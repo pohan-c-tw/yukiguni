@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -69,6 +70,7 @@ class JobResponse(BaseModel):
     video_duration_seconds: float | None
     video_width: int | None
     video_height: int | None
+    analysis_result: dict[str, Any] | None
     error_message: str | None
     processing_started_at: datetime | None
     completed_at: datetime | None

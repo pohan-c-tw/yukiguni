@@ -18,6 +18,7 @@ JOB_RESPONSE_COLUMNS = """
     video_duration_seconds,
     video_width,
     video_height,
+    analysis_result,
     error_message,
     processing_started_at,
     completed_at,
