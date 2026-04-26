@@ -13,7 +13,7 @@ load_dotenv()
 config = context.config
 
 database_url = os.getenv("DATABASE_URL")
-if not database_url:
+if database_url is None or not database_url.strip():
     raise RuntimeError("DATABASE_URL is not set")
 
 if database_url.startswith("postgresql://"):

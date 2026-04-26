@@ -3,7 +3,6 @@ import tempfile
 from uuid import uuid4
 
 import boto3
-from botocore.exceptions import ClientError
 from pydantic import BaseModel
 
 from app.core.settings import get_required_env
@@ -11,10 +10,10 @@ from app.services.temp_files import remove_file_if_exists
 
 
 class R2Settings(BaseModel):
+    endpoint: str
     bucket_name: str
     access_key_id: str
     secret_access_key: str
-    endpoint: str
 
 
 class UploadedObjectMetadata(BaseModel):
@@ -24,10 +23,10 @@ class UploadedObjectMetadata(BaseModel):
 
 def get_r2_settings() -> R2Settings:
     return R2Settings(
+        endpoint=get_required_env("R2_ENDPOINT"),
         bucket_name=get_required_env("R2_BUCKET_NAME"),
         access_key_id=get_required_env("R2_ACCESS_KEY_ID"),
         secret_access_key=get_required_env("R2_SECRET_ACCESS_KEY"),
-        endpoint=get_required_env("R2_ENDPOINT"),
     )
 
 
@@ -37,9 +36,9 @@ def create_r2_client():
     return boto3.client(
         "s3",
         endpoint_url=settings.endpoint,
+        region_name="auto",
         aws_access_key_id=settings.access_key_id,
         aws_secret_access_key=settings.secret_access_key,
-        region_name="auto",
     )
 
 
@@ -69,6 +68,7 @@ def generate_presigned_upload_url(
 def get_uploaded_object_metadata(object_key: str) -> UploadedObjectMetadata:
     settings = get_r2_settings()
     r2_client = create_r2_client()
+
     response = r2_client.head_object(
         Bucket=settings.bucket_name,
         Key=object_key,
@@ -96,7 +96,7 @@ def download_uploaded_object_to_tempfile(object_key: str) -> str:
                 Key=object_key,
                 Fileobj=file_handle,
             )
-    except ClientError:
+    except Exception:
         remove_file_if_exists(temp_file_path)
         raise
 

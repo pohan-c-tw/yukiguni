@@ -26,6 +26,7 @@ def probe_video_file(file_path: str) -> ProbedVideoMetadata:
         "-show_streams",
         file_path,
     ]
+
     try:
         result = subprocess.run(
             command,
@@ -63,18 +64,12 @@ def probe_video_file(file_path: str) -> ProbedVideoMetadata:
     if not isinstance(video_stream, dict):
         raise ValueError("Uploaded object does not contain a video stream")
 
+    duration = format_info.get("duration")
     width = video_stream.get("width")
     height = video_stream.get("height")
-    duration = format_info.get("duration")
     fps = parse_frame_rate(video_stream.get("avg_frame_rate"))
     codec_name = video_stream.get("codec_name")
     rotation_degrees = parse_rotation_degrees(video_stream)
-
-    if not isinstance(width, int) or width <= 0:
-        raise ValueError("Uploaded object has invalid video width")
-
-    if not isinstance(height, int) or height <= 0:
-        raise ValueError("Uploaded object has invalid video height")
 
     try:
         duration_seconds = float(duration)
@@ -83,6 +78,12 @@ def probe_video_file(file_path: str) -> ProbedVideoMetadata:
 
     if duration_seconds <= 0:
         raise ValueError("Uploaded object has invalid video duration")
+
+    if not isinstance(width, int) or width <= 0:
+        raise ValueError("Uploaded object has invalid video width")
+
+    if not isinstance(height, int) or height <= 0:
+        raise ValueError("Uploaded object has invalid video height")
 
     return ProbedVideoMetadata(
         duration_seconds=duration_seconds,

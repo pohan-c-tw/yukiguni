@@ -12,25 +12,6 @@ class JobStateTransitionError(RuntimeError):
     pass
 
 
-def get_job_input_object_key_by_id(job_id: str) -> str:
-    with psycopg.connect(get_database_url(), row_factory=namedtuple_row) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT input_object_key
-                FROM analysis_jobs
-                WHERE id = %s
-                """,
-                (job_id,),
-            )
-            row = cur.fetchone()
-
-    if row is None:
-        raise RuntimeError("Job not found")
-
-    return row.input_object_key
-
-
 def get_job_status_by_id(job_id: str) -> JobStatus:
     with psycopg.connect(get_database_url(), row_factory=namedtuple_row) as conn:
         with conn.cursor() as cur:
@@ -50,6 +31,25 @@ def get_job_status_by_id(job_id: str) -> JobStatus:
     return JobStatus(row.status)
 
 
+def get_job_input_object_key_by_id(job_id: str) -> str:
+    with psycopg.connect(get_database_url(), row_factory=namedtuple_row) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT input_object_key
+                FROM analysis_jobs
+                WHERE id = %s
+                """,
+                (job_id,),
+            )
+            row = cur.fetchone()
+
+    if row is None:
+        raise RuntimeError("Job not found")
+
+    return row.input_object_key
+
+
 def update_job_to_processing(job_id: str) -> None:
     with psycopg.connect(get_database_url()) as conn:
         with conn.cursor() as cur:
@@ -58,6 +58,7 @@ def update_job_to_processing(job_id: str) -> None:
                 UPDATE analysis_jobs
                 SET
                     status = %s,
+                    output_object_key = NULL,
                     analysis_result = NULL,
                     error_message = NULL,
                     processing_started_at = NOW(),
@@ -140,6 +141,8 @@ def update_job_to_failed(job_id: str, error_message: str) -> None:
                 UPDATE analysis_jobs
                 SET
                     status = %s,
+                    output_object_key = NULL,
+                    analysis_result = NULL,
                     error_message = %s,
                     completed_at = NULL,
                     failed_at = NOW(),

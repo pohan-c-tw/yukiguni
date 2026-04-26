@@ -1,20 +1,20 @@
-from typing import Any
+from typing import Any, Mapping
 from uuid import UUID
 
 import psycopg
-from fastapi import HTTPException
-from psycopg.rows import namedtuple_row
+from psycopg.rows import dict_row
 
-from app.api.schemas import CreateJobRequest, JobResponse
+from app.api.schemas import AnalysisJobResponse, CreateJobRequest
 from app.core.job_status import JobStatus
 from app.core.settings import get_database_url
 
-JOB_RESPONSE_COLUMNS = """
+ANALYSIS_JOB_RESPONSE_COLUMNS = """
     id,
     status,
     original_filename,
     content_type,
     input_object_key,
+    -- output_object_key
     video_duration_seconds,
     video_width,
     video_height,
@@ -23,21 +23,19 @@ JOB_RESPONSE_COLUMNS = """
     processing_started_at,
     completed_at,
     failed_at
+    -- created_at
+    -- updated_at
 """
-JOB_RESPONSE_SELECT_SQL = "SELECT" + JOB_RESPONSE_COLUMNS + "\nFROM analysis_jobs"
+SELECT_ANALYSIS_JOB_RESPONSE_SQL = (
+    "SELECT" + ANALYSIS_JOB_RESPONSE_COLUMNS + "\nFROM analysis_jobs"
+)
 
 
-def build_job_response_from_row(
-    row: Any,
-) -> JobResponse:
-    return JobResponse.model_validate(row._asdict())
-
-
-def insert_job_and_return_row(
+def create_analysis_job_row(
     job_id: UUID,
     payload: CreateJobRequest,
-) -> Any:
-    with psycopg.connect(get_database_url(), row_factory=namedtuple_row) as conn:
+) -> Mapping[str, Any] | None:
+    with psycopg.connect(get_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -51,7 +49,7 @@ def insert_job_and_return_row(
                 VALUES (%s, %s, %s, %s, %s)
                 RETURNING
                 """
-                + JOB_RESPONSE_COLUMNS,
+                + ANALYSIS_JOB_RESPONSE_COLUMNS,
                 (
                     job_id,
                     JobStatus.UPLOADED,
@@ -63,11 +61,11 @@ def insert_job_and_return_row(
             return cur.fetchone()
 
 
-def get_job_row_by_id(job_id: UUID) -> Any:
-    with psycopg.connect(get_database_url(), row_factory=namedtuple_row) as conn:
+def get_job_response_row_by_id(job_id: UUID) -> Mapping[str, Any] | None:
+    with psycopg.connect(get_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
-                JOB_RESPONSE_SELECT_SQL
+                SELECT_ANALYSIS_JOB_RESPONSE_SQL
                 + """
                 WHERE id = %s
                 """,
@@ -76,29 +74,36 @@ def get_job_row_by_id(job_id: UUID) -> Any:
             return cur.fetchone()
 
 
-def mark_job_as_failed_and_return_row(job_id: UUID, error_message: str) -> Any:
-    with psycopg.connect(get_database_url(), row_factory=namedtuple_row) as conn:
+def row_to_analysis_job_response(
+    row: Mapping[str, Any],
+) -> AnalysisJobResponse:
+    return AnalysisJobResponse.model_validate(row)
+
+
+def mark_job_enqueue_failed(
+    job_id: UUID, error_message: str
+) -> Mapping[str, Any] | None:
+    with psycopg.connect(get_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 UPDATE analysis_jobs
                 SET
                     status = %s,
+                    output_object_key = NULL,
+                    analysis_result = NULL,
                     error_message = %s,
+                    processing_started_at = NULL,
+                    completed_at = NULL,
                     failed_at = NOW(),
                     updated_at = NOW()
                 WHERE id = %s
+                  AND status = %s
                 RETURNING
                 """
-                + JOB_RESPONSE_COLUMNS,
-                (JobStatus.FAILED, error_message, job_id),
+                + ANALYSIS_JOB_RESPONSE_COLUMNS,
+                (JobStatus.FAILED, error_message, job_id, JobStatus.UPLOADED),
             )
             row = cur.fetchone()
-
-    if row is None:
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to update job failure state",
-        )
 
     return row

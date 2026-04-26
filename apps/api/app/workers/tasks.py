@@ -1,5 +1,3 @@
-from botocore.exceptions import ClientError
-
 from app.services.analysis_results import build_analysis_result
 from app.services.r2_storage import download_uploaded_object_to_tempfile
 from app.services.temp_files import remove_file_if_exists
@@ -38,7 +36,7 @@ def process_analysis_job(job_id: str) -> None:
         )
         update_job_to_done(job_id, probed_video_metadata, analysis_result)
         print(f"Processed analysis job: {job_id}")
-    except (ClientError, RuntimeError, ValueError) as error:
+    except Exception as error:
         try:
             update_job_to_failed(job_id, str(error))
         except JobStateTransitionError as transition_error:

@@ -7,7 +7,7 @@
 
 ### Health Check
 # Confirm that the API server is running and reachable.
-GET {{baseUrl}}/health
+GET {{baseUrl}}/healthz
 
 ### Create Presigned Upload URL
 # Ask the API for an object key and a temporary upload target.

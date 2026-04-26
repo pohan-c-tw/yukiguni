@@ -13,7 +13,7 @@ from app.core.job_status import JobStatus
 from app.services.analysis_results import AnalysisResult
 
 
-class CreateUploadUrlRequest(BaseModel):
+class CreatePresignedUploadUrlRequest(BaseModel):
     filename: str = Field(min_length=1, max_length=255)
     content_type: str
     file_size: int
@@ -34,7 +34,7 @@ class CreateUploadUrlRequest(BaseModel):
         return validate_upload_file_size(value)
 
 
-class CreateUploadUrlResponse(BaseModel):
+class CreatePresignedUploadUrlResponse(BaseModel):
     object_key: str
     upload_url: str
     expires_in_seconds: int
@@ -61,12 +61,13 @@ class CreateJobRequest(BaseModel):
         return validate_upload_object_key(value)
 
 
-class JobResponse(BaseModel):
+class AnalysisJobResponse(BaseModel):
     id: UUID
     status: JobStatus
     original_filename: str
     content_type: str
     input_object_key: str
+    # output_object_key
     video_duration_seconds: float | None
     video_width: int | None
     video_height: int | None
@@ -75,3 +76,5 @@ class JobResponse(BaseModel):
     processing_started_at: datetime | None
     completed_at: datetime | None
     failed_at: datetime | None
+    # created_at
+    # updated_at

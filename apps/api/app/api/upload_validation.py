@@ -1,4 +1,4 @@
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import HTTPException
 
 from app.api.schemas import CreateJobRequest
@@ -20,14 +20,19 @@ def validate_uploaded_object_for_job(
 
         if status_code == 404 or error_code in {
             "404",
-            "NotFound",
             "NoSuchKey",
+            "NotFound",
         }:
             raise HTTPException(
                 status_code=400,
                 detail="Uploaded object not found",
             ) from error
 
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to read uploaded object metadata",
+        ) from error
+    except BotoCoreError as error:
         raise HTTPException(
             status_code=502,
             detail="Failed to read uploaded object metadata",
