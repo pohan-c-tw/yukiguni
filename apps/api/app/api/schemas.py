@@ -67,7 +67,7 @@ class AnalysisJobResponse(BaseModel):
     original_filename: str
     content_type: str
     input_object_key: str
-    # output_object_key
+    # output_object_key: str | None
     video_duration_seconds: float | None
     video_width: int | None
     video_height: int | None
@@ -76,5 +76,5 @@ class AnalysisJobResponse(BaseModel):
     processing_started_at: datetime | None
     completed_at: datetime | None
     failed_at: datetime | None
-    # created_at
-    # updated_at
+    # created_at: datetime
+    # updated_at: datetime

@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from redis.exceptions import RedisError
 
 from app.api.job_rows import (
     create_analysis_job_row,
@@ -17,7 +18,7 @@ from app.api.schemas import (
     CreatePresignedUploadUrlResponse,
 )
 from app.api.upload_validation import validate_uploaded_object_for_job
-from app.core.settings import get_cors_allow_origins
+from app.core.settings import SettingsError, get_cors_allow_origins
 from app.services.r2_storage import (
     build_upload_object_key,
     generate_presigned_upload_url,
@@ -58,6 +59,11 @@ def create_presigned_upload_url(
             payload.content_type,
             UPLOAD_URL_EXPIRES_IN_SECONDS,
         )
+    except SettingsError as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Upload URL service is not configured",
+        ) from error
     except (BotoCoreError, ClientError) as error:
         raise HTTPException(
             status_code=502,
@@ -69,6 +75,22 @@ def create_presigned_upload_url(
         upload_url=upload_url,
         expires_in_seconds=UPLOAD_URL_EXPIRES_IN_SECONDS,
     )
+
+
+def ensure_job_marked_enqueue_failed(job_id: UUID, error: Exception) -> None:
+    try:
+        row = mark_job_enqueue_failed(job_id, "Failed to enqueue job")
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update job failure state",
+        ) from error
+
+    if row is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update job failure state",
+        ) from error
 
 
 @app.post("/jobs", response_model=AnalysisJobResponse)
@@ -83,17 +105,31 @@ def create_job(payload: CreateJobRequest) -> AnalysisJobResponse:
 
     try:
         get_job_queue().enqueue(process_analysis_job, str(job_id))
-    except Exception as error:
-        row = mark_job_enqueue_failed(job_id, "Failed to enqueue job")
+    except SettingsError as error:
+        ensure_job_marked_enqueue_failed(job_id, error)
 
-        if row is None:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to update job failure state",
-            ) from error
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "Queue service is not configured",
+                "job_id": str(job_id),
+            },
+        ) from error
+    except RedisError as error:
+        ensure_job_marked_enqueue_failed(job_id, error)
 
         raise HTTPException(
             status_code=502,
+            detail={
+                "message": "Failed to enqueue job",
+                "job_id": str(job_id),
+            },
+        ) from error
+    except Exception as error:
+        ensure_job_marked_enqueue_failed(job_id, error)
+
+        raise HTTPException(
+            status_code=500,
             detail={
                 "message": "Failed to enqueue job",
                 "job_id": str(job_id),

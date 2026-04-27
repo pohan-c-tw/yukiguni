@@ -6,6 +6,7 @@ from app.api.validation import (
     MAX_UPLOAD_FILE_SIZE_BYTES,
     validate_upload_content_type,
 )
+from app.core.settings import SettingsError
 from app.services.r2_storage import UploadedObjectMetadata, get_uploaded_object_metadata
 
 
@@ -14,15 +15,17 @@ def validate_uploaded_object_for_job(
 ) -> UploadedObjectMetadata:
     try:
         metadata = get_uploaded_object_metadata(payload.input_object_key)
+    except SettingsError as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Upload validation service is not configured",
+        ) from error
     except ClientError as error:
         status_code = error.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
         error_code = error.response.get("Error", {}).get("Code")
 
-        if status_code == 404 or error_code in {
-            "404",
-            "NoSuchKey",
-            "NotFound",
-        }:
+        missing_object_error_codes = {"404", "NoSuchKey", "NotFound"}
+        if status_code == 404 or error_code in missing_object_error_codes:
             raise HTTPException(
                 status_code=400,
                 detail="Uploaded object not found",

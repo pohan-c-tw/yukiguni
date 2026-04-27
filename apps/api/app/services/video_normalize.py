@@ -25,13 +25,10 @@ def choose_analysis_fps(source_fps: float | None) -> float:
         return 30.0
 
     capped_fps = min(source_fps, MAX_ANALYSIS_FPS)
-    nearest_common_fps = min(
-        COMMON_FPS_VALUES,
-        key=lambda common_fps: abs(capped_fps - common_fps),
-    )
 
-    if abs(capped_fps - nearest_common_fps) <= COMMON_FPS_TOLERANCE:
-        return nearest_common_fps
+    for common_fps in COMMON_FPS_VALUES:
+        if abs(capped_fps - common_fps) <= COMMON_FPS_TOLERANCE:
+            return common_fps
 
     return round(capped_fps, 3)
 
@@ -56,12 +53,14 @@ def normalize_video_for_analysis(
 
     command = [
         "ffmpeg",
+        "-y",
         "-hide_banner",
         "-loglevel",
         "error",
-        "-y",
         "-i",
         input_file_path,
+        "-map",
+        "0:v:0",
         "-an",
         "-vf",
         build_analysis_video_filter(target_fps),
@@ -86,6 +85,9 @@ def normalize_video_for_analysis(
             check=False,
             timeout=FFMPEG_TIMEOUT_SECONDS,
         )
+    except FileNotFoundError as error:
+        remove_file_if_exists(output_file_path)
+        raise RuntimeError("ffmpeg is not available") from error
     except subprocess.TimeoutExpired as error:
         remove_file_if_exists(output_file_path)
         raise ValueError("Timed out while normalizing video for analysis") from error

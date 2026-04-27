@@ -14,7 +14,6 @@ ANALYSIS_JOB_RESPONSE_COLUMNS = """
     original_filename,
     content_type,
     input_object_key,
-    -- output_object_key
     video_duration_seconds,
     video_width,
     video_height,
@@ -23,8 +22,6 @@ ANALYSIS_JOB_RESPONSE_COLUMNS = """
     processing_started_at,
     completed_at,
     failed_at
-    -- created_at
-    -- updated_at
 """
 SELECT_ANALYSIS_JOB_RESPONSE_SQL = (
     "SELECT" + ANALYSIS_JOB_RESPONSE_COLUMNS + "\nFROM analysis_jobs"
@@ -91,6 +88,9 @@ def mark_job_enqueue_failed(
                 SET
                     status = %s,
                     output_object_key = NULL,
+                    video_duration_seconds = NULL,
+                    video_width = NULL,
+                    video_height = NULL,
                     analysis_result = NULL,
                     error_message = %s,
                     processing_started_at = NULL,
@@ -104,6 +104,4 @@ def mark_job_enqueue_failed(
                 + ANALYSIS_JOB_RESPONSE_COLUMNS,
                 (JobStatus.FAILED, error_message, job_id, JobStatus.UPLOADED),
             )
-            row = cur.fetchone()
-
-    return row
+            return cur.fetchone()

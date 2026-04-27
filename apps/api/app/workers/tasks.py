@@ -43,6 +43,11 @@ def process_analysis_job(job_id: str) -> None:
             print(
                 f"Skipped failure update for analysis job {job_id}: {transition_error}"
             )
+        except Exception as failure_update_error:
+            print(
+                "Failed to update analysis job "
+                f"{job_id} to failed: {failure_update_error}"
+            )
         raise
     finally:
         remove_file_if_exists(temp_file_path)

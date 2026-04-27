@@ -59,6 +59,9 @@ def update_job_to_processing(job_id: str) -> None:
                 SET
                     status = %s,
                     output_object_key = NULL,
+                    video_duration_seconds = NULL,
+                    video_width = NULL,
+                    video_height = NULL,
                     analysis_result = NULL,
                     error_message = NULL,
                     processing_started_at = NOW(),
@@ -92,7 +95,7 @@ def update_job_to_processing(job_id: str) -> None:
 def update_job_to_done(
     job_id: str,
     probed_video: ProbedVideoMetadata,
-    analysis_result: AnalysisResult | None = None,
+    analysis_result: AnalysisResult,
 ) -> None:
     with psycopg.connect(get_database_url()) as conn:
         with conn.cursor() as cur:
@@ -117,9 +120,7 @@ def update_job_to_done(
                     probed_video.duration_seconds,
                     probed_video.width,
                     probed_video.height,
-                    Jsonb(analysis_result.model_dump())
-                    if analysis_result is not None
-                    else None,
+                    Jsonb(analysis_result.model_dump()),
                     job_id,
                     JobStatus.PROCESSING,
                 ),
@@ -142,6 +143,9 @@ def update_job_to_failed(job_id: str, error_message: str) -> None:
                 SET
                     status = %s,
                     output_object_key = NULL,
+                    video_duration_seconds = NULL,
+                    video_width = NULL,
+                    video_height = NULL,
                     analysis_result = NULL,
                     error_message = %s,
                     completed_at = NULL,
