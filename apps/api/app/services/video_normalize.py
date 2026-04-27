@@ -94,8 +94,11 @@ def normalize_video_for_analysis(
 
     if result.returncode != 0:
         remove_file_if_exists(output_file_path)
-        error_message = result.stderr.strip() or "ffmpeg exited with an error"
-        raise ValueError(f"Failed to normalize video for analysis: {error_message}")
+        error_message = result.stderr.strip()
+        if error_message:
+            print(f"ffmpeg failed while normalizing video: {error_message}")
+
+        raise ValueError("Failed to normalize video for analysis")
 
     try:
         normalized_metadata = probe_video_file(output_file_path)

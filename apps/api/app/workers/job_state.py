@@ -1,5 +1,5 @@
 import psycopg
-from psycopg.rows import namedtuple_row
+from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from app.core.job_status import JobStatus
@@ -13,7 +13,7 @@ class JobStateTransitionError(RuntimeError):
 
 
 def get_job_status_by_id(job_id: str) -> JobStatus:
-    with psycopg.connect(get_database_url(), row_factory=namedtuple_row) as conn:
+    with psycopg.connect(get_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -28,11 +28,11 @@ def get_job_status_by_id(job_id: str) -> JobStatus:
     if row is None:
         raise RuntimeError("Job not found")
 
-    return JobStatus(row.status)
+    return JobStatus(row["status"])
 
 
 def get_job_input_object_key_by_id(job_id: str) -> str:
-    with psycopg.connect(get_database_url(), row_factory=namedtuple_row) as conn:
+    with psycopg.connect(get_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -47,7 +47,7 @@ def get_job_input_object_key_by_id(job_id: str) -> str:
     if row is None:
         raise RuntimeError("Job not found")
 
-    return row.input_object_key
+    return row["input_object_key"]
 
 
 def update_job_to_processing(job_id: str) -> None:
@@ -137,6 +137,7 @@ def update_job_to_done(
 def update_job_to_failed(job_id: str, error_message: str) -> None:
     with psycopg.connect(get_database_url()) as conn:
         with conn.cursor() as cur:
+            # Keep processing_started_at to show when the worker began processing.
             cur.execute(
                 """
                 UPDATE analysis_jobs

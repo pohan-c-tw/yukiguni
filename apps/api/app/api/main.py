@@ -1,6 +1,7 @@
 from uuid import UUID, uuid4
 
-from botocore.exceptions import BotoCoreError, ClientError
+import psycopg
+from botocore.exceptions import BotoCoreError
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from redis.exceptions import RedisError
@@ -8,7 +9,7 @@ from redis.exceptions import RedisError
 from app.api.job_rows import (
     create_analysis_job_row,
     get_job_response_row_by_id,
-    mark_job_enqueue_failed,
+    mark_uploaded_job_enqueue_failed,
     row_to_analysis_job_response,
 )
 from app.api.schemas import (
@@ -37,7 +38,7 @@ if cors_allow_origins:
         CORSMiddleware,
         allow_origins=cors_allow_origins,
         allow_methods=["GET", "POST"],
-        allow_headers=["*"],
+        allow_headers=["Content-Type"],
         allow_credentials=False,
     )
 
@@ -64,7 +65,7 @@ def create_presigned_upload_url(
             status_code=500,
             detail="Upload URL service is not configured",
         ) from error
-    except (BotoCoreError, ClientError) as error:
+    except BotoCoreError as error:
         raise HTTPException(
             status_code=502,
             detail="Failed to create upload URL",
@@ -77,10 +78,10 @@ def create_presigned_upload_url(
     )
 
 
-def ensure_job_marked_enqueue_failed(job_id: UUID, error: Exception) -> None:
+def ensure_job_marked_enqueue_failed(job_id: UUID, cause: Exception) -> None:
     try:
-        row = mark_job_enqueue_failed(job_id, "Failed to enqueue job")
-    except Exception:
+        row = mark_uploaded_job_enqueue_failed(job_id, "Failed to enqueue job")
+    except Exception as error:
         raise HTTPException(
             status_code=500,
             detail="Failed to update job failure state",
@@ -90,7 +91,7 @@ def ensure_job_marked_enqueue_failed(job_id: UUID, error: Exception) -> None:
         raise HTTPException(
             status_code=500,
             detail="Failed to update job failure state",
-        ) from error
+        ) from cause
 
 
 @app.post("/jobs", response_model=AnalysisJobResponse)
@@ -98,10 +99,24 @@ def create_job(payload: CreateJobRequest) -> AnalysisJobResponse:
     validate_uploaded_object_for_job(payload)
 
     job_id = uuid4()
-    row = create_analysis_job_row(job_id, payload)
 
-    if row is None:
-        raise HTTPException(status_code=500, detail="Failed to create job")
+    try:
+        row = create_analysis_job_row(job_id, payload)
+    except SettingsError as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Database service is not configured",
+        ) from error
+    except psycopg.Error as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create job",
+        ) from error
+    except RuntimeError as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create job",
+        ) from error
 
     try:
         get_job_queue().enqueue(process_analysis_job, str(job_id))
@@ -141,7 +156,18 @@ def create_job(payload: CreateJobRequest) -> AnalysisJobResponse:
 
 @app.get("/jobs/{job_id}", response_model=AnalysisJobResponse)
 def get_job(job_id: UUID) -> AnalysisJobResponse:
-    row = get_job_response_row_by_id(job_id)
+    try:
+        row = get_job_response_row_by_id(job_id)
+    except SettingsError as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Database service is not configured",
+        ) from error
+    except psycopg.Error as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get job",
+        ) from error
 
     if row is None:
         raise HTTPException(status_code=404, detail="Job not found")

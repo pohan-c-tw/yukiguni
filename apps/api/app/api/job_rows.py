@@ -31,7 +31,7 @@ SELECT_ANALYSIS_JOB_RESPONSE_SQL = (
 def create_analysis_job_row(
     job_id: UUID,
     payload: CreateJobRequest,
-) -> Mapping[str, Any] | None:
+) -> Mapping[str, Any]:
     with psycopg.connect(get_database_url(), row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -55,7 +55,11 @@ def create_analysis_job_row(
                     payload.input_object_key,
                 ),
             )
-            return cur.fetchone()
+            row = cur.fetchone()
+            if row is None:
+                raise RuntimeError("Failed to create analysis job row")
+
+            return row
 
 
 def get_job_response_row_by_id(job_id: UUID) -> Mapping[str, Any] | None:
@@ -77,7 +81,7 @@ def row_to_analysis_job_response(
     return AnalysisJobResponse.model_validate(row)
 
 
-def mark_job_enqueue_failed(
+def mark_uploaded_job_enqueue_failed(
     job_id: UUID, error_message: str
 ) -> Mapping[str, Any] | None:
     with psycopg.connect(get_database_url(), row_factory=dict_row) as conn:
