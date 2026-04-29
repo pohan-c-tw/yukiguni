@@ -70,6 +70,7 @@ class AnalysisResult(BaseModel):
 def build_analysis_result(
     probed_video: ProbedVideoMetadata,
     normalized_video_result: NormalizedVideoResult,
+    pose_landmarks: PoseLandmarksResult,
 ) -> AnalysisResult:
     return AnalysisResult(
         schema_version=ANALYSIS_RESULT_SCHEMA_VERSION,
@@ -82,4 +83,5 @@ def build_analysis_result(
         ),
         original_video=probed_video,
         analysis_video=normalized_video_result.metadata,
+        pose_landmarks=pose_landmarks,
     )

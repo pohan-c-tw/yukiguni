@@ -1,4 +1,6 @@
+from app.core.settings import get_pose_model_path
 from app.services.analysis_results import build_analysis_result
+from app.services.pose_landmarks import detect_pose_landmarks
 from app.services.r2_storage import download_uploaded_object_to_tempfile
 from app.services.temp_files import remove_file_if_exists
 from app.services.video_normalize import normalize_video_for_analysis
@@ -31,8 +33,15 @@ def process_analysis_job(job_id: str) -> None:
             probed_video_metadata.fps,
         )
         normalized_file_path = normalized_video_result.file_path
+        pose_landmarks = detect_pose_landmarks(
+            normalized_file_path,
+            normalized_video_result.metadata,
+            get_pose_model_path(),
+        )
         analysis_result = build_analysis_result(
-            probed_video_metadata, normalized_video_result
+            probed_video_metadata,
+            normalized_video_result,
+            pose_landmarks,
         )
         update_job_to_done(job_id, probed_video_metadata, analysis_result)
         print(f"Processed analysis job: {job_id}")

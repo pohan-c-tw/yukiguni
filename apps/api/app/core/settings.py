@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -35,3 +36,7 @@ def get_cors_allow_origins() -> list[str]:
 
 def get_database_url() -> str:
     return get_required_env("DATABASE_URL")
+
+
+def get_pose_model_path() -> Path:
+    return Path(get_required_env("POSE_MODEL_PATH"))
