@@ -55,10 +55,52 @@ export type AnalysisNormalizationResult = {
   stored_object_key: string | null
 }
 
+export type PoseLandmarksVideoMetadata = {
+  fps: number | null
+  frame_count: number
+  width: number
+  height: number
+}
+
+export type PoseLandmark = {
+  x: number
+  y: number
+  z: number
+  visibility: number
+}
+
+export type PoseLandmarkFrame = {
+  frame_index: number
+  timestamp_ms: number
+  pose_detected: boolean
+  landmarks: Record<string, PoseLandmark>
+}
+
+export type PoseDetectionResult = {
+  model: string
+  model_asset_name: string | null
+  landmark_format: string
+  detected_frame_count: number
+  frames: PoseLandmarkFrame[]
+}
+
+export type PoseLandmarksResult = {
+  schema_version: string
+  video: PoseLandmarksVideoMetadata
+  pose: PoseDetectionResult
+}
+
+export type GaitAnalysisResult = {
+  schema_version: string
+}
+
 export type AnalysisResult = {
+  schema_version: string | null
   normalization: AnalysisNormalizationResult
   original_video: ProbedVideoMetadata
   analysis_video: ProbedVideoMetadata
+  pose_landmarks: PoseLandmarksResult | null
+  gait: GaitAnalysisResult | null
 }
 
 export type AnalysisJobResponse = {
