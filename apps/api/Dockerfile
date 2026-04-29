@@ -9,7 +9,10 @@ WORKDIR /app
 
 # rm -rf /var/lib/apt/lists/*: 把安裝後的快取清掉
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
+    && apt-get install -y --no-install-recommends \
+        ffmpeg \
+        libgles2 \
+        libegl1 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir uv
