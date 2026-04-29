@@ -1,42 +1,50 @@
 import type {
+  AnalysisJobResponse,
   CreateJobRequest,
-  JobResponse,
-  UploadUrlRequest,
-  UploadUrlResponse,
-} from '@/features/analysis-flow/types'
+  CreatePresignedUploadUrlRequest,
+  CreatePresignedUploadUrlResponse,
+} from '@/features/pipeline-check/types'
 import { API_BASE_URL } from '@/lib/config'
 
 async function parseErrorMessage(response: Response): Promise<string> {
   const fallbackMessage = `Request failed with status ${response.status}`
 
   try {
-    const payload = await response.json()
+    const payload: unknown = await response.json()
 
-    if (typeof payload?.detail === 'string') {
-      return payload.detail
+    // Supported FastAPI error shapes:
+    // - { detail: "Message" }
+    // - { detail: { message: "Message", ...debugFields } }
+    // Other detail shapes, including validation errors, fall back to JSON.
+    if (!payload || typeof payload !== 'object' || !('detail' in payload)) {
+      return fallbackMessage
+    }
+
+    const { detail } = payload
+
+    if (typeof detail === 'string') {
+      return detail
     }
 
     if (
-      payload?.detail &&
-      typeof payload.detail === 'object' &&
-      typeof payload.detail.error_message === 'string'
+      detail &&
+      typeof detail === 'object' &&
+      !Array.isArray(detail) &&
+      'message' in detail &&
+      typeof detail.message === 'string'
     ) {
-      return payload.detail.error_message
+      return detail.message
     }
 
-    if (payload?.detail && typeof payload.detail === 'object') {
-      return JSON.stringify(payload.detail)
-    }
+    return JSON.stringify(detail)
   } catch {
     return fallbackMessage
   }
-
-  return fallbackMessage
 }
 
-export async function createUploadUrl(
-  payload: UploadUrlRequest,
-): Promise<UploadUrlResponse> {
+export async function createPresignedUploadUrl(
+  payload: CreatePresignedUploadUrlRequest,
+): Promise<CreatePresignedUploadUrlResponse> {
   const response = await fetch(`${API_BASE_URL}/uploads/presign`, {
     method: 'POST',
     headers: {
@@ -71,7 +79,7 @@ export async function uploadFileToR2(
 
 export async function createJob(
   payload: CreateJobRequest,
-): Promise<JobResponse> {
+): Promise<AnalysisJobResponse> {
   const response = await fetch(`${API_BASE_URL}/jobs`, {
     method: 'POST',
     headers: {
@@ -87,7 +95,7 @@ export async function createJob(
   return response.json()
 }
 
-export async function fetchJob(jobId: string): Promise<JobResponse> {
+export async function fetchJob(jobId: string): Promise<AnalysisJobResponse> {
   const response = await fetch(`${API_BASE_URL}/jobs/${jobId}`)
 
   if (!response.ok) {

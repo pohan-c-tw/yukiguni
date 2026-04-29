@@ -9,50 +9,22 @@ import {
   Text,
 } from '@mantine/core'
 
-import type { JobResponse } from '@/features/analysis-flow/types'
+import {
+  formatDateTime,
+  formatResolution,
+} from '@/features/pipeline-check/formatters'
+import { getJobStatusColor } from '@/features/pipeline-check/status'
+import type { AnalysisJobResponse } from '@/features/pipeline-check/types'
 
 export type JobResultCardProps = {
-  job: JobResponse | null
-  title: string
+  job: AnalysisJobResponse | null
 }
 
-function getStatusColor(status: JobResponse['status']) {
-  if (status === 'done') {
-    return 'green'
-  }
-
-  if (status === 'failed') {
-    return 'red'
-  }
-
-  if (status === 'processing' || status === 'validating') {
-    return 'blue'
-  }
-
-  return 'gray'
-}
-
-function formatDateTime(value: string | null): string {
-  if (!value) {
-    return 'Pending'
-  }
-
-  return new Date(value).toLocaleString()
-}
-
-function formatResolution(job: JobResponse): string {
-  if (!job.video_width || !job.video_height) {
-    return 'Pending'
-  }
-
-  return `${job.video_width} x ${job.video_height}`
-}
-
-export function JobResultCard({ job, title }: JobResultCardProps) {
+export function JobResultCard({ job }: JobResultCardProps) {
   return (
     <Card withBorder radius="md" padding="lg">
       <Stack gap="md">
-        <Text fw={600}>{title}</Text>
+        <Text fw={600}>Worker result</Text>
 
         {job ? (
           <>
@@ -60,7 +32,7 @@ export function JobResultCard({ job, title }: JobResultCardProps) {
               <Text size="sm" c="dimmed">
                 Current job status
               </Text>
-              <Badge color={getStatusColor(job.status)} variant="light">
+              <Badge color={getJobStatusColor(job.status)} variant="light">
                 {job.status}
               </Badge>
             </Group>
@@ -127,6 +99,17 @@ export function JobResultCard({ job, title }: JobResultCardProps) {
               <Alert color="red" variant="light">
                 {job.error_message}
               </Alert>
+            ) : null}
+
+            {job.analysis_result ? (
+              <div>
+                <Text size="sm" c="dimmed">
+                  Analysis result
+                </Text>
+                <Code block>
+                  {JSON.stringify(job.analysis_result, null, 2)}
+                </Code>
+              </div>
             ) : null}
           </>
         ) : (
