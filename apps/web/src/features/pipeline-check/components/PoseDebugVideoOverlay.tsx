@@ -93,20 +93,17 @@ export function PoseDebugVideoOverlay({
       const frame = frameByIndex.get(frameIndex)
 
       if (!frame?.pose_detected) {
-        // TODO: review
         drawFrameLabel(context, frameIndex, mediaTime, rect.width, false)
         return
       }
 
-      // TODO: review
-      drawPoseLandmarks(context, frame.landmarks, rect.width, rect.height)
       drawPoseConnections(context, frame.landmarks, rect.width, rect.height)
+      drawPoseLandmarks(context, frame.landmarks, rect.width, rect.height)
       drawFrameLabel(context, frameIndex, mediaTime, rect.width, true)
     },
     [fps, frameByIndex, frameCount],
   )
 
-  // TODO: review
   useVideoFrameDrawing({ canvasRef, videoRef, drawFrame })
 
   return (

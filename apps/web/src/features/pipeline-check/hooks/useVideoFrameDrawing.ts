@@ -1,18 +1,10 @@
-// TODO: review
 import type { RefObject } from 'react'
 import { useEffect } from 'react'
 
-type OptionalVideoFrameApi = Partial<
-  Pick<
-    HTMLVideoElement,
-    'cancelVideoFrameCallback' | 'requestVideoFrameCallback'
-  >
->
-
 type UseVideoFrameDrawingParams = {
   canvasRef: RefObject<HTMLCanvasElement | null>
-  drawFrame: (mediaTime: number) => void
   videoRef: RefObject<HTMLVideoElement | null>
+  drawFrame: (mediaTime: number) => void
 }
 
 export function useVideoFrameDrawing({
@@ -23,14 +15,12 @@ export function useVideoFrameDrawing({
   useEffect(() => {
     const video = videoRef.current
 
-    if (!video) {
+    if (!video || !video.requestVideoFrameCallback) {
       return
     }
 
-    const videoFrameApi: OptionalVideoFrameApi = video
     let isDisposed = false
     let videoFrameHandle: number | null = null
-    let animationFrameHandle: number | null = null
 
     const drawCurrentTime = () => {
       drawFrame(video.currentTime)
@@ -41,45 +31,14 @@ export function useVideoFrameDrawing({
         return
       }
 
-      if (videoFrameApi.requestVideoFrameCallback) {
-        videoFrameHandle = videoFrameApi.requestVideoFrameCallback(
-          (_now, metadata) => {
-            drawFrame(metadata.mediaTime)
-            scheduleNextVideoFrame()
-          },
-        )
-      }
-    }
-
-    const scheduleAnimationFrame = () => {
-      if (isDisposed) {
-        return
-      }
-
-      drawCurrentTime()
-
-      if (!video.paused && !video.ended) {
-        animationFrameHandle = window.requestAnimationFrame(
-          scheduleAnimationFrame,
-        )
-      }
-    }
-
-    const handlePlay = () => {
-      if (!videoFrameApi.requestVideoFrameCallback) {
-        animationFrameHandle = window.requestAnimationFrame(
-          scheduleAnimationFrame,
-        )
-      }
+      videoFrameHandle = video.requestVideoFrameCallback((_now, metadata) => {
+        drawFrame(metadata.mediaTime)
+        scheduleNextVideoFrame()
+      })
     }
 
     drawCurrentTime()
-
-    if (videoFrameApi.requestVideoFrameCallback) {
-      scheduleNextVideoFrame()
-    } else {
-      video.addEventListener('play', handlePlay)
-    }
+    scheduleNextVideoFrame()
 
     video.addEventListener('loadedmetadata', drawCurrentTime)
     video.addEventListener('seeked', drawCurrentTime)
@@ -95,14 +54,9 @@ export function useVideoFrameDrawing({
       isDisposed = true
 
       if (videoFrameHandle !== null) {
-        videoFrameApi.cancelVideoFrameCallback?.(videoFrameHandle)
+        video.cancelVideoFrameCallback(videoFrameHandle)
       }
 
-      if (animationFrameHandle !== null) {
-        window.cancelAnimationFrame(animationFrameHandle)
-      }
-
-      video.removeEventListener('play', handlePlay)
       video.removeEventListener('loadedmetadata', drawCurrentTime)
       video.removeEventListener('seeked', drawCurrentTime)
       video.removeEventListener('pause', drawCurrentTime)

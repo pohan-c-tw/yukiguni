@@ -1,4 +1,3 @@
-// TODO: review
 import type { PoseLandmark } from '@/features/pipeline-check/types'
 
 const POSE_LANDMARK_CONNECTIONS = [
@@ -20,32 +19,6 @@ const POSE_LANDMARK_CONNECTIONS = [
   ['right_heel', 'right_foot_index'],
 ] as const
 
-export function drawPoseLandmarks(
-  context: CanvasRenderingContext2D,
-  landmarks: Record<string, PoseLandmark>,
-  width: number,
-  height: number,
-) {
-  context.save()
-
-  for (const landmark of Object.values(landmarks)) {
-    const x = landmark.x * width
-    const y = landmark.y * height
-    const radius = landmark.visibility >= 0.5 ? 3.5 : 2.5
-
-    context.globalAlpha = Math.max(0.24, landmark.visibility)
-    context.fillStyle = '#f8fafc'
-    context.strokeStyle = '#111827'
-    context.lineWidth = 1.25
-    context.beginPath()
-    context.arc(x, y, radius, 0, Math.PI * 2)
-    context.fill()
-    context.stroke()
-  }
-
-  context.restore()
-}
-
 export function drawPoseConnections(
   context: CanvasRenderingContext2D,
   landmarks: Record<string, PoseLandmark>,
@@ -53,6 +26,7 @@ export function drawPoseConnections(
   height: number,
 ) {
   context.save()
+
   context.lineCap = 'round'
   context.lineJoin = 'round'
   context.lineWidth = 2
@@ -67,10 +41,36 @@ export function drawPoseConnections(
     }
 
     context.globalAlpha =
-      Math.max(0.22, Math.min(start.visibility, end.visibility)) * 0.86
+      Math.max(0.25, Math.min(start.visibility, end.visibility)) * 0.85
     context.beginPath()
     context.moveTo(start.x * width, start.y * height)
     context.lineTo(end.x * width, end.y * height)
+    context.stroke()
+  }
+
+  context.restore()
+}
+
+export function drawPoseLandmarks(
+  context: CanvasRenderingContext2D,
+  landmarks: Record<string, PoseLandmark>,
+  width: number,
+  height: number,
+) {
+  context.save()
+
+  for (const landmark of Object.values(landmarks)) {
+    const x = landmark.x * width
+    const y = landmark.y * height
+    const radius = landmark.visibility >= 0.5 ? 3.5 : 2.5
+
+    context.globalAlpha = Math.max(0.25, landmark.visibility)
+    context.fillStyle = '#f8fafc'
+    context.strokeStyle = '#111827'
+    context.lineWidth = 1.25
+    context.beginPath()
+    context.arc(x, y, radius, 0, Math.PI * 2)
+    context.fill()
     context.stroke()
   }
 
@@ -89,6 +89,7 @@ export function drawFrameLabel(
   }`
 
   context.save()
+
   context.font = '12px system-ui, -apple-system, BlinkMacSystemFont, sans-serif'
   context.textBaseline = 'top'
 
@@ -101,5 +102,6 @@ export function drawFrameLabel(
   context.fillRect(8, 8, boxWidth, 24)
   context.fillStyle = '#f8fafc'
   context.fillText(label, 8 + paddingX, 8 + paddingY, boxWidth - paddingX * 2)
+
   context.restore()
 }
