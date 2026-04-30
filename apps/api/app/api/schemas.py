@@ -40,6 +40,12 @@ class CreatePresignedUploadUrlResponse(BaseModel):
     expires_in_seconds: int
 
 
+class AnalysisVideoUrlResponse(BaseModel):
+    object_key: str
+    video_url: str
+    expires_in_seconds: int
+
+
 class CreateJobRequest(BaseModel):
     original_filename: str = Field(min_length=1, max_length=255)
     content_type: str

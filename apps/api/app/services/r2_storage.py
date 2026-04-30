@@ -69,6 +69,20 @@ def generate_presigned_upload_url(
     )
 
 
+def generate_presigned_download_url(object_key: str, expires_in: int) -> str:
+    settings = get_r2_settings()
+    r2_client = create_r2_client()
+
+    return r2_client.generate_presigned_url(
+        ClientMethod="get_object",
+        Params={
+            "Bucket": settings.bucket_name,
+            "Key": object_key,
+        },
+        ExpiresIn=expires_in,
+    )
+
+
 def get_uploaded_object_metadata(object_key: str) -> UploadedObjectMetadata:
     settings = get_r2_settings()
     r2_client = create_r2_client()
