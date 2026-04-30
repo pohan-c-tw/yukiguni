@@ -14,6 +14,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router'
 
 import { fetchAnalysisVideoUrl, fetchJob } from '@/features/pipeline-check/api'
+import { PoseDebugVideoOverlay } from '@/features/pipeline-check/components/PoseDebugVideoOverlay'
 import { getErrorMessage } from '@/features/pipeline-check/errors'
 import { formatResolution } from '@/features/pipeline-check/formatters'
 import type {
@@ -109,17 +110,9 @@ export function PoseDebugPage() {
             ) : null}
 
             {videoUrlResult ? (
-              <video
-                src={videoUrlResult.video_url}
-                controls
-                style={{
-                  aspectRatio: '16 / 9',
-                  background: '#111',
-                  borderRadius: 8,
-                  display: 'block',
-                  maxHeight: '70vh',
-                  width: '100%',
-                }}
+              <PoseDebugVideoOverlay
+                videoUrl={videoUrlResult.video_url}
+                poseLandmarks={poseLandmarks}
               />
             ) : null}
 
