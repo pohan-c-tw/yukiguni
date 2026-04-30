@@ -46,6 +46,10 @@ def build_upload_object_key(filename: str) -> str:
     return f"uploads/{uuid4()}-{filename}"
 
 
+def build_analysis_video_object_key(job_id: str) -> str:
+    return f"analysis-videos/{job_id}/{uuid4()}.mp4"
+
+
 def generate_presigned_upload_url(
     object_key: str,
     content_type: str,
@@ -101,3 +105,15 @@ def download_uploaded_object_to_tempfile(object_key: str) -> str:
         raise
 
     return temp_file_path
+
+
+def upload_analysis_video_file(file_path: str, object_key: str) -> None:
+    settings = get_r2_settings()
+    r2_client = create_r2_client()
+
+    r2_client.upload_file(
+        Filename=file_path,
+        Bucket=settings.bucket_name,
+        Key=object_key,
+        ExtraArgs={"ContentType": "video/mp4"},
+    )

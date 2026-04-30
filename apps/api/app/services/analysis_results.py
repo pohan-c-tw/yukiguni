@@ -69,6 +69,7 @@ class AnalysisResult(BaseModel):
 
 def build_analysis_result(
     probed_video: ProbedVideoMetadata,
+    stored_analysis_video_object_key: str,
     normalized_video_result: NormalizedVideoResult,
     pose_landmarks: PoseLandmarksResult,
 ) -> AnalysisResult:
@@ -79,7 +80,7 @@ def build_analysis_result(
             timing_mode="cfr",
             target_fps=normalized_video_result.target_fps,
             max_long_edge=normalized_video_result.max_long_edge,
-            stored_object_key=None,
+            stored_object_key=stored_analysis_video_object_key,
         ),
         original_video=probed_video,
         analysis_video=normalized_video_result.metadata,

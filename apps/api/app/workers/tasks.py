@@ -3,7 +3,11 @@ import time
 from app.core.settings import get_pose_model_path
 from app.services.analysis_results import build_analysis_result
 from app.services.pose_landmarks import detect_pose_landmarks
-from app.services.r2_storage import download_uploaded_object_to_tempfile
+from app.services.r2_storage import (
+    build_analysis_video_object_key,
+    download_uploaded_object_to_tempfile,
+    upload_analysis_video_file,
+)
 from app.services.temp_files import remove_file_if_exists
 from app.services.video_normalize import normalize_video_for_analysis
 from app.services.video_probe import probe_video_file
@@ -108,6 +112,21 @@ def process_analysis_job(job_id: str) -> None:
             fps=normalized_video_result.metadata.fps,
         )
 
+        analysis_video_object_key = build_analysis_video_object_key(job_id)
+        log_analysis_job_event(
+            job_id,
+            "analysis_video_upload_started",
+            started_at,
+            object_key=analysis_video_object_key,
+        )
+        upload_analysis_video_file(normalized_file_path, analysis_video_object_key)
+        log_analysis_job_event(
+            job_id,
+            "analysis_video_upload_finished",
+            started_at,
+            object_key=analysis_video_object_key,
+        )
+
         log_analysis_job_event(job_id, "pose_started", started_at)
         pose_landmarks = detect_pose_landmarks(
             normalized_file_path,
@@ -125,6 +144,7 @@ def process_analysis_job(job_id: str) -> None:
         log_analysis_job_event(job_id, "analysis_result_build_started", started_at)
         analysis_result = build_analysis_result(
             probed_video_metadata,
+            analysis_video_object_key,
             normalized_video_result,
             pose_landmarks,
         )
