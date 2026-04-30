@@ -2,17 +2,21 @@ import type { PoseLandmark } from '@/features/pipeline-check/types'
 
 const POSE_LANDMARK_CONNECTIONS = [
   ['left_shoulder', 'right_shoulder'],
+  ['left_hip', 'right_hip'],
+
+  ['left_shoulder', 'left_hip'],
+  ['right_shoulder', 'right_hip'],
+
   ['left_shoulder', 'left_elbow'],
   ['left_elbow', 'left_wrist'],
   ['right_shoulder', 'right_elbow'],
   ['right_elbow', 'right_wrist'],
-  ['left_shoulder', 'left_hip'],
-  ['right_shoulder', 'right_hip'],
-  ['left_hip', 'right_hip'],
+
   ['left_hip', 'left_knee'],
   ['left_knee', 'left_ankle'],
   ['right_hip', 'right_knee'],
   ['right_knee', 'right_ankle'],
+
   ['left_ankle', 'left_heel'],
   ['left_heel', 'left_foot_index'],
   ['right_ankle', 'right_heel'],
@@ -27,10 +31,10 @@ export function drawPoseConnections(
 ) {
   context.save()
 
+  context.lineWidth = 2
   context.lineCap = 'round'
   context.lineJoin = 'round'
-  context.lineWidth = 2
-  context.strokeStyle = 'rgba(54, 211, 153, 0.86)'
+  context.strokeStyle = '#36d399'
 
   for (const [startName, endName] of POSE_LANDMARK_CONNECTIONS) {
     const start = landmarks[startName]
@@ -59,15 +63,16 @@ export function drawPoseLandmarks(
 ) {
   context.save()
 
+  context.lineWidth = 1.25
+  context.fillStyle = '#f8fafc'
+  context.strokeStyle = '#111827'
+
   for (const landmark of Object.values(landmarks)) {
     const x = landmark.x * width
     const y = landmark.y * height
     const radius = landmark.visibility >= 0.5 ? 3.5 : 2.5
 
     context.globalAlpha = Math.max(0.25, landmark.visibility)
-    context.fillStyle = '#f8fafc'
-    context.strokeStyle = '#111827'
-    context.lineWidth = 1.25
     context.beginPath()
     context.arc(x, y, radius, 0, Math.PI * 2)
     context.fill()
@@ -87,21 +92,30 @@ export function drawFrameLabel(
   const label = `frame ${frameIndex} | ${mediaTime.toFixed(3)}s | ${
     poseDetected ? 'pose detected' : 'no pose'
   }`
+  const paddingX = 8
+  const paddingY = 5
+  const originX = 8
+  const originY = 8
+  const labelHeight = 24
 
   context.save()
 
   context.font = '12px system-ui, -apple-system, BlinkMacSystemFont, sans-serif'
   context.textBaseline = 'top'
 
-  const paddingX = 8
-  const paddingY = 5
   const textWidth = context.measureText(label).width
-  const boxWidth = Math.min(width - 16, textWidth + paddingX * 2)
+  const boxWidth = Math.min(width - originX * 2, textWidth + paddingX * 2)
 
   context.fillStyle = 'rgba(17, 24, 39, 0.76)'
-  context.fillRect(8, 8, boxWidth, 24)
+  context.fillRect(originX, originY, boxWidth, labelHeight)
+
   context.fillStyle = '#f8fafc'
-  context.fillText(label, 8 + paddingX, 8 + paddingY, boxWidth - paddingX * 2)
+  context.fillText(
+    label,
+    originX + paddingX,
+    originY + paddingY,
+    boxWidth - paddingX * 2,
+  )
 
   context.restore()
 }
