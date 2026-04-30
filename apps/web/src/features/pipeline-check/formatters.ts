@@ -20,10 +20,17 @@ export function formatDateTime(value: string | null): string {
   return new Date(value).toLocaleString()
 }
 
-export function formatResolution(job: AnalysisJobResponse): string {
-  if (!job.video_width || !job.video_height) {
+export function formatResolution(
+  width: number | null,
+  height: number | null,
+): string {
+  if (!width || !height) {
     return 'Pending'
   }
 
-  return `${job.video_width} x ${job.video_height}`
+  return `${width} x ${height}`
+}
+
+export function formatJobResolution(job: AnalysisJobResponse): string {
+  return formatResolution(job.video_width, job.video_height)
 }

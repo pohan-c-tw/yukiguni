@@ -1,6 +1,7 @@
 import {
   Alert,
   Badge,
+  Button,
   Card,
   Code,
   Group,
@@ -8,10 +9,11 @@ import {
   Stack,
   Text,
 } from '@mantine/core'
+import { useNavigate } from 'react-router'
 
 import {
   formatDateTime,
-  formatResolution,
+  formatJobResolution,
 } from '@/features/pipeline-check/formatters'
 import { getJobStatusColor } from '@/features/pipeline-check/status'
 import type { AnalysisJobResponse } from '@/features/pipeline-check/types'
@@ -21,10 +23,30 @@ export type JobResultCardProps = {
 }
 
 export function JobResultCard({ job }: JobResultCardProps) {
+  const navigate = useNavigate()
+  const hasPoseDebugVideo = Boolean(
+    job?.analysis_result &&
+    job.analysis_result.normalization.stored_object_key &&
+    job.analysis_result.pose_landmarks,
+  )
+
   return (
     <Card withBorder radius="md" padding="lg">
       <Stack gap="md">
-        <Text fw={600}>Worker result</Text>
+        <Group justify="space-between" align="center">
+          <Text fw={600}>Worker result</Text>
+          {job && hasPoseDebugVideo ? (
+            <Button
+              variant="light"
+              size="xs"
+              onClick={() => {
+                navigate(`/internal/pose-debug/${job.id}`)
+              }}
+            >
+              Open pose debug page
+            </Button>
+          ) : null}
+        </Group>
 
         {job ? (
           <>
@@ -63,7 +85,7 @@ export function JobResultCard({ job }: JobResultCardProps) {
                 <Text size="sm" c="dimmed">
                   Resolution
                 </Text>
-                <Text>{formatResolution(job)}</Text>
+                <Text>{formatJobResolution(job)}</Text>
               </div>
 
               <div>

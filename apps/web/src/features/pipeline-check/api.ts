@@ -1,5 +1,6 @@
 import type {
   AnalysisJobResponse,
+  AnalysisVideoUrlResponse,
   CreateJobRequest,
   CreatePresignedUploadUrlRequest,
   CreatePresignedUploadUrlResponse,
@@ -97,6 +98,20 @@ export async function createJob(
 
 export async function fetchJob(jobId: string): Promise<AnalysisJobResponse> {
   const response = await fetch(`${API_BASE_URL}/jobs/${jobId}`)
+
+  if (!response.ok) {
+    throw new Error(await parseErrorMessage(response))
+  }
+
+  return response.json()
+}
+
+export async function fetchAnalysisVideoUrl(
+  jobId: string,
+): Promise<AnalysisVideoUrlResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/jobs/${jobId}/analysis-video-url`,
+  )
 
   if (!response.ok) {
     throw new Error(await parseErrorMessage(response))

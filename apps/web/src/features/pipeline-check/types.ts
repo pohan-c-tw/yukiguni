@@ -32,6 +32,12 @@ export type CreatePresignedUploadUrlResponse = {
   expires_in_seconds: number
 }
 
+export type AnalysisVideoUrlResponse = {
+  object_key: string
+  video_url: string
+  expires_in_seconds: number
+}
+
 export type CreateJobRequest = {
   original_filename: string
   content_type: string
