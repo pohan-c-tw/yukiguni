@@ -8,9 +8,17 @@ The project currently focuses on video upload, asynchronous processing, job life
 
 ## Demo
 
-- Demo video: TODO
-- Frontend: TODO
-- API health check: TODO
+### 1. Upload and Processing Pipeline
+
+https://github.com/user-attachments/assets/e092565a-d06f-4a9a-9ee8-d06e1fb219c3
+
+This demo shows the internal pipeline-check UI running the end-to-end upload flow: selecting a video, requesting a presigned upload URL, uploading the file directly to Cloudflare R2, creating an analysis job, and waiting for the background worker to process the job.
+
+### 2. Pose Debug Viewer
+
+https://github.com/user-attachments/assets/68229002-81e9-47d7-8214-4bd1692dc874
+
+This demo shows the pose debug page for an existing analysis job. The page loads the normalized analysis video and pose landmark data, then renders the video with a frame-synced debug overlay for inspecting MediaPipe pose detection results.
 
 ## What Is Implemented
 
