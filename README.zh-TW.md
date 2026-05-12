@@ -36,25 +36,22 @@ https://github.com/user-attachments/assets/68229002-81e9-47d7-8214-4bd1692dc874
 - 前端可以 polling job status，並顯示成功結果或失敗狀態
 - Pose debug 頁面可以載入 normalized analysis video，並顯示 frame-synced pose overlay
 
-## 系統流程
+## 架構概覽
 
 ```mermaid
 flowchart TD
-    A[Browser / React App] -->|Request upload URL and create job| B[FastAPI API]
+    A[Browser / React App] -->|Request upload URL, create job, poll status| B[FastAPI API]
     A -->|Upload source video directly| C[Cloudflare R2]
+    A -->|Load analysis video via presigned URL| C
 
-    B -->|Validate upload and store job state| D[(PostgreSQL)]
+    B -->|Store/read job state| D[(PostgreSQL)]
     B -->|Enqueue analysis work| E[Redis / RQ]
+    B -->|Validate object metadata / sign R2 access| C
 
-    E --> F[RQ Worker]
-    F -->|Read source video| C
+    E -->|Dispatch queued job| F[RQ Worker]
+    F -->|Read source video and store analysis video| C
     F -->|Probe, normalize, and detect pose| G[Video / Pose Pipeline]
-    F -->|Store normalized analysis video| C
     F -->|Write metadata, landmarks, and status| D
-
-    A -->|Poll job and load debug data| B
-    B -->|Read result state| D
-    B -->|Return presigned analysis video URL| C
 ```
 
 ## 技術棧
