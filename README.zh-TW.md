@@ -2,9 +2,9 @@
 
 [English](./README.md) | 繁體中文
 
-Yukiguni 是一個跑步影片分析 MVP，重點是建立一條可部署的影片處理 pipeline：使用者從瀏覽器上傳跑步影片，系統建立分析任務，背景 worker 下載影片、讀取影片 metadata、normalize 成分析用影片格式，並把處理結果寫回資料庫。
+Yukiguni 是一個跑步影片分析 MVP，重點是建立一條可部署的影片處理 pipeline：使用者從瀏覽器上傳跑步影片，系統建立分析任務，背景 worker 下載影片、讀取影片 metadata、normalize 成分析用影片格式、偵測 pose landmarks、儲存 normalized analysis video，並把處理結果寫回資料庫。
 
-目前專案聚焦在影片上傳、非同步處理、job lifecycle 與部署整合。MediaPipe 姿態分析、overlay rendering、永久輸出影片與分享頁面仍在規劃中。
+目前專案聚焦在影片上傳、非同步處理、job lifecycle、pose debug inspection 與部署整合。跑姿評分、產生 overlay video、使用者結果頁與分享報告仍在規劃中。
 
 ## Demo
 
@@ -30,30 +30,31 @@ https://github.com/user-attachments/assets/68229002-81e9-47d7-8214-4bd1692dc874
 - Worker 下載影片
 - Worker 使用 `ffprobe` 讀取原始影片 metadata
 - Worker 使用 `ffmpeg` normalize 成 CFR MP4 analysis video
-- Worker 將影片 metadata、normalization metadata 與 job status 寫回 PostgreSQL
+- Worker 將 normalized analysis video 上傳回 Cloudflare R2
+- Worker 使用 MediaPipe Pose Landmarker 萃取 frame-level pose landmarks
+- Worker 將影片 metadata、normalization metadata、pose landmarks 與 job status 寫回 PostgreSQL
 - 前端可以 polling job status，並顯示成功結果或失敗狀態
+- Pose debug 頁面可以載入 normalized analysis video，並顯示 frame-synced pose overlay
 
 ## 系統流程
 
 ```mermaid
 flowchart TD
-    A[Browser / React App] -->|1. Request presigned upload URL| B[FastAPI API]
-    B -->|2. Return presigned URL| A
-    A -->|3. Upload video directly| C[Cloudflare R2]
+    A[Browser / React App] -->|Request upload URL and create job| B[FastAPI API]
+    A -->|Upload source video directly| C[Cloudflare R2]
 
-    A -->|4. Create analysis job| B
-    B -->|5. Validate uploaded object metadata| C
-    B -->|6. Insert analysis_jobs row| D[(PostgreSQL)]
-    B -->|7. Enqueue background job| E[Redis / RQ]
+    B -->|Validate upload and store job state| D[(PostgreSQL)]
+    B -->|Enqueue analysis work| E[Redis / RQ]
 
-    E -->|8. Process job| F[RQ Worker]
-    F -->|9. Download video| C
-    F -->|10. Probe video metadata| G[ffprobe]
-    F -->|11. Normalize analysis video| H[ffmpeg]
-    F -->|12. Update job result and status| D
+    E --> F[RQ Worker]
+    F -->|Read source video| C
+    F -->|Probe, normalize, and detect pose| G[Video / Pose Pipeline]
+    F -->|Store normalized analysis video| C
+    F -->|Write metadata, landmarks, and status| D
 
-    A -->|13. Poll job status| B
-    B -->|14. Read job result| D
+    A -->|Poll job and load debug data| B
+    B -->|Read result state| D
+    B -->|Return presigned analysis video URL| C
 ```
 
 ## 技術棧
@@ -129,14 +130,14 @@ stateDiagram-v2
 - 用 queue 解耦 API 與影片處理流程
 - 用 PostgreSQL 保存 job lifecycle 與處理結果
 - Worker state transition 有狀態保護，避免重複處理污染資料
-- 使用 `ffprobe` / `ffmpeg` 建立後續姿態分析所需的標準化影片輸入
+- 使用 `ffprobe` / `ffmpeg` 建立 MediaPipe pose analysis 所需的標準化影片輸入
+- 將 normalized analysis video 存回 R2，並提供 presigned download URL 供 debug playback 使用
 - API 與 worker 使用 Docker containerize，讓 `ffprobe` / `ffmpeg` 這類 runtime dependency 在部署環境中更一致
 
 ## 目前限制
 
-- 尚未整合 MediaPipe pose analysis
-- 尚未產生 overlay video
-- Normalized analysis video 目前是 worker 暫存檔，尚未永久存回 R2
+- 尚未實作跑姿評分
+- 尚未產生 overlay video 檔案；目前 overlay 是在瀏覽器中作為 debug view 即時渲染
 - 尚未實作使用者帳號、分享頁面或正式產品 UI
 - 目前前端主要是 pipeline check / deployment check UI
 
@@ -186,9 +187,7 @@ npm run build
 
 ## Roadmap
 
-- Integrate MediaPipe Pose Landmarker
 - Define structured running-form analysis result
 - Generate processed videos with visual overlays
-- Store processed outputs in Cloudflare R2
 - Add shareable result pages
 - Add retry support for failed jobs

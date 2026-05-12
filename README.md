@@ -40,30 +40,21 @@ This demo shows the pose debug page for an existing analysis job. The page loads
 
 ```mermaid
 flowchart TD
-    A[Browser / React App] -->|1. Request presigned upload URL| B[FastAPI API]
-    B -->|2. Return presigned URL| A
-    A -->|3. Upload video directly| C[Cloudflare R2]
+    A[Browser / React App] -->|Request upload URL and create job| B[FastAPI API]
+    A -->|Upload source video directly| C[Cloudflare R2]
 
-    A -->|4. Create analysis job| B
-    B -->|5. Validate uploaded object metadata| C
-    B -->|6. Insert analysis_jobs row| D[(PostgreSQL)]
-    B -->|7. Enqueue background job| E[Redis / RQ]
+    B -->|Validate upload and store job state| D[(PostgreSQL)]
+    B -->|Enqueue analysis work| E[Redis / RQ]
 
-    E -->|8. Process job| F[RQ Worker]
-    F -->|9. Claim job and mark processing| D
-    F -->|10. Read input object key| D
-    F -->|11. Download uploaded video| C
-    F -->|12. Probe original metadata| G[ffprobe]
-    F -->|13. Normalize analysis video| H[ffmpeg]
-    F -->|14. Upload normalized analysis video| C
-    F -->|15. Detect pose landmarks| I[MediaPipe Pose]
-    F -->|16. Update job result and status| D
+    E --> F[RQ Worker]
+    F -->|Read source video| C
+    F -->|Probe, normalize, and detect pose| G[Video / Pose Pipeline]
+    F -->|Store normalized analysis video| C
+    F -->|Write metadata, landmarks, and status| D
 
-    A -->|17. Poll job status| B
-    B -->|18. Read job result| D
-    A -->|19. Request analysis video URL| B
-    B -->|20. Create presigned download URL| C
-    B -->|21. Return analysis video URL| A
+    A -->|Poll job and load debug data| B
+    B -->|Read result state| D
+    B -->|Return presigned analysis video URL| C
 ```
 
 ## Tech Stack
