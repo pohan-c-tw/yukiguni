@@ -2,9 +2,9 @@
 
 English | [繁體中文](./README.zh-TW.md)
 
-Yukiguni is a running video analysis MVP. Its focus is building a deployable video-processing pipeline: users upload running videos from the browser, the system creates analysis jobs, a background worker downloads the videos, reads video metadata, normalizes them into an analysis-ready format, and writes the processing result back to the database.
+Yukiguni is a running video analysis MVP. Its focus is building a deployable video-processing pipeline: users upload running videos from the browser, the system creates analysis jobs, a background worker downloads the videos, reads video metadata, normalizes them into an analysis-ready format, detects pose landmarks, stores the normalized analysis video, and writes the processing result back to the database.
 
-The project currently focuses on video upload, asynchronous processing, job lifecycle management, and deployment integration. MediaPipe pose analysis, overlay rendering, permanent output videos, and shareable result pages are still planned.
+The project currently focuses on video upload, asynchronous processing, job lifecycle management, pose-debug inspection, and deployment integration. Running-form scoring, generated overlay videos, user-facing result pages, and shareable reports are still planned.
 
 ## Demo
 
@@ -30,8 +30,11 @@ This demo shows the pose debug page for an existing analysis job. The page loads
 - The worker downloads the video
 - The worker uses `ffprobe` to read original video metadata
 - The worker uses `ffmpeg` to normalize the video into a CFR MP4 analysis video
-- The worker writes video metadata, normalization metadata, and job status back to PostgreSQL
+- The worker uploads the normalized analysis video back to Cloudflare R2
+- The worker uses MediaPipe Pose Landmarker to extract frame-level pose landmarks
+- The worker writes video metadata, normalization metadata, pose landmarks, and job status back to PostgreSQL
 - The frontend can poll job status and display either the successful result or a failure state
+- The pose debug page can load the normalized analysis video and render a frame-synced pose overlay
 
 ## System Flow
 
@@ -47,13 +50,20 @@ flowchart TD
     B -->|7. Enqueue background job| E[Redis / RQ]
 
     E -->|8. Process job| F[RQ Worker]
-    F -->|9. Download video| C
-    F -->|10. Probe video metadata| G[ffprobe]
-    F -->|11. Normalize analysis video| H[ffmpeg]
-    F -->|12. Update job result and status| D
+    F -->|9. Claim job and mark processing| D
+    F -->|10. Read input object key| D
+    F -->|11. Download uploaded video| C
+    F -->|12. Probe original metadata| G[ffprobe]
+    F -->|13. Normalize analysis video| H[ffmpeg]
+    F -->|14. Upload normalized analysis video| C
+    F -->|15. Detect pose landmarks| I[MediaPipe Pose]
+    F -->|16. Update job result and status| D
 
-    A -->|13. Poll job status| B
-    B -->|14. Read job result| D
+    A -->|17. Poll job status| B
+    B -->|18. Read job result| D
+    A -->|19. Request analysis video URL| B
+    B -->|20. Create presigned download URL| C
+    B -->|21. Return analysis video URL| A
 ```
 
 ## Tech Stack
@@ -129,14 +139,14 @@ This project is not just a CRUD app. It implements a media-processing pipeline t
 - Uses a queue to decouple the API from video processing
 - Stores job lifecycle and processing results in PostgreSQL
 - Protects worker state transitions to avoid duplicated processing and polluted data
-- Uses `ffprobe` / `ffmpeg` to create standardized video input for future pose analysis
+- Uses `ffprobe` / `ffmpeg` to create standardized video input for MediaPipe pose analysis
+- Stores the normalized analysis video in R2 and returns presigned download URLs for debug playback
 - Containerizes the API and worker with Docker so runtime dependencies like `ffprobe` / `ffmpeg` are more consistent across deployment environments
 
 ## Current Limitations
 
-- MediaPipe pose analysis is not integrated yet
-- Overlay video generation is not implemented yet
-- The normalized analysis video is currently a temporary worker file and is not persisted back to R2 yet
+- Running-form scoring is not implemented yet
+- Generated overlay video export is not implemented yet; overlays are currently rendered in the browser for debugging
 - User accounts, shareable result pages, and a polished product UI are not implemented yet
 - The current frontend is mainly a pipeline check / deployment check UI
 
@@ -186,9 +196,7 @@ npm run build
 
 ## Roadmap
 
-- Integrate MediaPipe Pose Landmarker
 - Define structured running-form analysis result
 - Generate processed videos with visual overlays
-- Store processed outputs in Cloudflare R2
 - Add shareable result pages
 - Add retry support for failed jobs
